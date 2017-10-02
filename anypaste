@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# This is anypaste. Authored by Markasoftware (see markasoftware.com)
+# This software is released under the GPLv3, see gnu.org
+
+function anypaste-sprunge {
+    if [[ $1 == "upload" ]]
+    then
+        sprunge_link=$(curl -#F "sprunge=@$ap_path" sprunge.us)
+        echo "Direct Link: $sprunge_link"
+    fi
+}
+
+# CREATE CONFIGURATION
+
+# determine path to configuration file
+# todo: allow command-line specified configuration file
+
+[[ -n "$XDG_CONFIG_HOME" ]] && ap_cfg="$XDG_CONFIG_HOME/anypaste.conf" || ap_cfg="$HOME/.config/anypaste.conf"
+
+if [[ ! -e "$ap_cfg" ]]
+then
+    echo 'Could not find configuration file, creating one.'
+    echo 'The default configuration is fine unless you want to enable extra plugins.'
+    # todo: possibly use base64 instead
+    cat > "$ap_cfg" <<< "ap_plugins=('anypaste-sprunge' 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat')"
+fi
+
+# LOAD CONFIGURATION
+
+source "$ap_cfg"
+
+# LOOP THROUGH PLUGINS
+
+ap_path="$1"
+ap_file_b="$(file -b '$ap_path')"
+
+for cur_plugin in "${ap_plugins[@]}"
+do
+    # CHECK PLUGIN ELIGIBILITY
+
+    $cur_plugin check_eligibility $ap_path $ap_file_b
+    if [[ $? -eq 0 ]] 
+    then
+        config_chk_err="false"
+        for cur_req_config in $($cur_plugin get_required_config)
+        do
+            if [[ -z "${!cur_req_config}" ]]
+            then
+                echo "WARNING: Plugin $cur_plugin is missing required configuration parameter $cur_req_config, skipping it"
+                config_chk_err="true"
+                break
+            fi
+        done
+        [[ $config_chk_err == "true" ]] && continue
+        echo "Using plugin $cur_plugin"
+        if $cur_plugin upload $ap_path
+        then
+            echo 'Upload complete, have a nice day!'
+            exit
+        else
+            echo 'Plugin reported an error, trying next one'
+            continue
+        fi
+    fi
+done
