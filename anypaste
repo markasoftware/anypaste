@@ -3,6 +3,13 @@
 # This is anypaste. Authored by Markasoftware (see markasoftware.com)
 # This software is released under the GPLv3, see gnu.org
 
+# COMMON PLUGIN FUNCTIONS
+
+# Args: File to check, max size, plugin name
+function check_size {
+    [[ "$(wc -c < $2)" -lt $1 ]] || (echo "WARNING: File is of compatible type for plugin $3, but is above size limit of $2 bytes" && false)
+}
+
 function anypaste-sprunge {
     if [[ $1 == "upload" ]]
     then
@@ -18,10 +25,13 @@ function anypaste-vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
-            [[ "$3" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]]
+            [[ "$3" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$3" 20000000 "anypaste-vgyme"
             ;;
         upload)
-            vgyme_json=$(curl -#fF "file=@$2" https://vgy.me/upload)
+            ap_mime=$(echo "$3" | grep -o '[a-z]*/[a-z]*')
+            # sometimes curl does not set the same mime type that's returned by file -ib
+            # this causes issues (http 422 from vgy.me)
+            vgyme_json=$(curl -#fF "file=@\"$2\";type=$ap_mime" https://vgy.me/upload)
             [[ $? -ne 0 ]] && echo 'ERROR: vgy.me did not return HTTP 200!' && return 1
             vgyme_link=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+' | head -1)
             vgyme_direct=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+\.[a-zA-Z]+')
@@ -38,7 +48,7 @@ function anypaste-vgyme {
 function anypaste-instaudio {
     case $1 in
         check_eligibility)
-            [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]]
+            [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$3" 15000000 "anypaste-instaudio"
             ;;
         upload)
             inst_json=$(curl -#fF "audio_file=@$2" https://instaud.io/new.json)
@@ -54,6 +64,11 @@ function anypaste-instaudio {
             ;;
     esac
 }
+
+#################
+## END PLUGINS ##
+## BEGIN CORE ###
+#################
 
 # CREATE CONFIGURATION
 
@@ -86,26 +101,37 @@ then
     exit 1
 fi
 
+# CHECK CONFIGURATION PARAMETERS FUNCTION
+
+function check_config {
+    missing_configs=()
+    for cur_req_config in $($1 get_required_config)
+    do
+        if [[ -z "${!cur_req_config}" ]]
+        then
+            missing_configs+=("$cur_req_config")
+        fi
+    done
+    if [[ -n "${missing_configs[@]}" ]]
+    then
+        echo "Missing required configuration parameters for $1: ${missing_configs[@]}"
+        echo 'You can set them in your configuration file. Skipping this plugin for now.'
+        return 1
+    fi
+}
+
+# LOOP THROUGH PLUGINS
+
 for cur_plugin in "${ap_plugins[@]}"
 do
     # CHECK PLUGIN ELIGIBILITY
 
-    $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
-    if [[ $? -eq 0 ]] 
+    if $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
     then
-        config_chk_err="false"
-        for cur_req_config in $($cur_plugin get_required_config)
-        do
-            if [[ -z "${!cur_req_config}" ]]
-            then
-                echo "WARNING: Plugin $cur_plugin is missing required configuration parameter $cur_req_config, skipping it"
-                config_chk_err="true"
-                break
-            fi
-        done
-        [[ $config_chk_err == "true" ]] && continue
+        check_config $cur_plugin || continue
+        # PERFORM UPLOAD
         echo "Using plugin $cur_plugin"
-        if $cur_plugin upload $ap_path
+        if $cur_plugin upload "$ap_path" "$ap_file_ib"
         then
             echo 'Upload complete, have a nice day!'
             exit
