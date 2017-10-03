@@ -7,7 +7,7 @@
 
 # Args: File to check, max size, plugin name
 function check_size {
-    [[ "$(wc -c < $2)" -lt $1 ]] || (echo "WARNING: File is of compatible type for plugin $3, but is above size limit of $2 bytes" && false)
+    [[ $(wc -c < "$1") -lt $2 ]] || (echo "WARNING: File is of compatible type for plugin $3, but is above size limit of $2 bytes" && false)
 }
 
 function anypaste-sprunge {
@@ -25,7 +25,7 @@ function anypaste-vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
-            [[ "$3" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$3" 20000000 "anypaste-vgyme"
+            [[ "$3" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$2" 20000000 "anypaste-vgyme"
             ;;
         upload)
             ap_mime=$(echo "$3" | grep -o '[a-z]*/[a-z]*')
@@ -48,7 +48,7 @@ function anypaste-vgyme {
 function anypaste-instaudio {
     case $1 in
         check_eligibility)
-            [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$3" 15000000 "anypaste-instaudio"
+            [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$2" 15000000 "anypaste-instaudio"
             ;;
         upload)
             inst_json=$(curl -#fF "audio_file=@$2" https://instaud.io/new.json)
@@ -61,6 +61,13 @@ function anypaste-instaudio {
             # apparently this is POSIX compliant?
             echo "Direct Link: https://instaud.io/_$inst_redirect.$ap_ext"
             echo ''
+            ;;
+    esac
+}
+
+function anypaste-gfycat {
+    case $1 in
+        check_eligibility)
             ;;
     esac
 }
