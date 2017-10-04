@@ -13,7 +13,7 @@ function check_size {
 function anypaste-sprunge {
     if [[ $1 == "upload" ]]
     then
-        sprunge_link=$(curl -#fF "sprunge=@$2" sprunge.us)
+        sprunge_link=$(curl -#fF "sprunge=@\"$2\"" sprunge.us)
         [[ $? -ne 0 ]] && echo 'ERROR: sprunge.us did not return HTTP 200!' && return 1
         echo ''
         echo "Direct Link: $sprunge_link"
@@ -51,7 +51,7 @@ function anypaste-instaudio {
             [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$2" 15000000 "anypaste-instaudio"
             ;;
         upload)
-            inst_json=$(curl -#fF "audio_file=@$2" https://instaud.io/new.json)
+            inst_json=$(curl -#fF "audio_file=@\"$2\"" https://instaud.io/new.json)
             [[ $? -ne 0 ]] && echo 'ERROR: instaud.io did not return HTTP 200!' && return 1
             inst_redirect=$(echo "$inst_json" | grep -oE '/[a-zA-Z0-9]+')
             # this is POSIX compliant, I guess
@@ -128,6 +128,8 @@ do
     esac
 done
 
+shift $[OPTIND - 1]
+
 # CREATE CONFIGURATION
 
 # determine path to configuration file
@@ -141,13 +143,51 @@ fi
 if [[ ! -e "$ap_cfg" ]]
 then
     echo "Could not find configuration file, creating one at $ap_cfg."
+    echo 'The default configuration is fine unless you want to enable extra plugins.'
+    # todo: possibly use base64 instead
+    cat > "$ap_cfg" <<< "ap_plugins=( 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat' 'anypaste-sprunge' )"
 fi
+
+# LOAD CONFIGURATION
+
+source "$ap_cfg"
+
+# GET FILE DATA
+
+ap_path=$1
+ap_file_ib=$(file -ib "$ap_path")
+
+if [[ ! -r "$ap_path" ]]
+then
+    echo "ERROR: could not read file at $ap_path"
+    echo "Make sure it exists and you have permissions to read it, then try again."
+    exit 1
+fi
+
+# CHECK CONFIGURATION PARAMETERS FUNCTION
+
+function check_config {
+    missing_configs=()
+    for cur_req_config in $($1 get_required_config)
+    do
+        if [[ -z "${!cur_req_config}" ]]
+        then
+            missing_configs+=("$cur_req_config")
+        fi
+    done
+    if [[ -n "${missing_configs[@]}" ]]
+    then
+        echo "Missing required configuration parameters for $1: ${missing_configs[@]}"
+        echo 'You can set them in your configuration file. Skipping this plugin for now.'
+        return 1
+    fi
+}
 
 # UPLOAD FUNCTION
 
 # args: plugin executable, ap_path, ap_file_ib
 function upload_plugin {
-    echo "Attempting to upload with plugin `$1`"
+    echo "Attempting to upload with plugin $1"
     if $1 upload "$2" "$3"
     then
         echo 'Upload complete, have a nice day!'
@@ -164,11 +204,11 @@ for cur_plugin in "${ap_plugins[@]}"
 do
     # CHECK PLUGIN ELIGIBILITY
 
-    if $ab_f || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
+    if $ap_f || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
     then
-        $ab_f || check_config $cur_plugin || continue
+        $ap_f || check_config $cur_plugin || continue
         compatible_plugins+=("$cur_plugin")
-        $ab_i && continue
+        $ap_i && continue
         # PERFORM UPLOAD
         if upload_plugin $cur_plugin "$ap_path" "$ap_file_ib"
         then
@@ -179,7 +219,7 @@ do
     fi
 done
 
-if $ab_i
+if $ap_i
 then
     echo "The following compatible plugins were found: ${compatible_plugins[@]}"
     echo 'Enter the full or partial name of them, then hit enter to search...'
