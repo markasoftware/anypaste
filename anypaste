@@ -77,74 +77,113 @@ function anypaste-gfycat {
 ## BEGIN CORE ###
 #################
 
+# PARSE COMMAND LINE OPTIONS, DISPLAY HELP
+
+ap_help='Usage: anypaste [-i] [-p plugin] [-c config_file_path] [file]
+Upload `file` to an automatically selected hosting site.
+
+OPTIONS:
+
+ -i          Enable interactive mode. Will prompt for important options.
+ -p          Force using the given plugin, even if it is not listed in
+             the configuration file. Will not fall back to other plugins
+ -f          Force: do not check plugin compatibility. Recommended only
+             to use in combination with -p
+ -c          Use the specified configuration file instead of the default
+             one located at $XDG_CONFIG_HOME/anypaste.conf. You can use
+             /dev/null as a config file to have nothing at all, but you
+             will need to set config variables in the shell manually
+ -h, --help  Display this help text.
+'
+
+if [[ "$@" =~ '--help' ]]
+then
+    echo "$ap_help"
+    exit
+fi
+
+ap_i='false'
+ap_f='false'
+ap_cfg=""
+
+while getopts 'fhip:c:' ap_opt
+do
+    case $ap_opt in
+    h)
+        echo "$ap_help"
+        exit
+        ;;
+    i)
+        ap_i='true'
+        ;;
+    f)
+        ap_f='true'
+        ;;
+    p)
+        echo 'Manual plugin selection not supported yet, sorry :('
+        ;;
+    c)
+        ap_cfg="$OPTARG"
+        ;;
+    esac
+done
+
 # CREATE CONFIGURATION
 
 # determine path to configuration file
 # todo: allow command-line specified configuration file
 
-[[ -n "$XDG_CONFIG_HOME" ]] && ap_cfg="$XDG_CONFIG_HOME/anypaste.conf" || ap_cfg="$HOME/.config/anypaste.conf"
+if [[ -z "$ap_cfg" ]]
+then
+    [[ -n "$XDG_CONFIG_HOME" ]] && ap_cfg="$XDG_CONFIG_HOME/anypaste.conf" || ap_cfg="$HOME/.config/anypaste.conf"
+fi
 
 if [[ ! -e "$ap_cfg" ]]
 then
-    echo 'Could not find configuration file, creating one.'
-    echo 'The default configuration is fine unless you want to enable extra plugins.'
-    # todo: possibly use base64 instead
-    cat > "$ap_cfg" <<< "ap_plugins=( 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat' 'anypaste-sprunge' )"
+    echo "Could not find configuration file, creating one at $ap_cfg."
 fi
 
-# LOAD CONFIGURATION
+# UPLOAD FUNCTION
 
-source "$ap_cfg"
-
-# GET FILE DATA
-
-ap_path="$1"
-ap_file_ib="$(file -ib $ap_path)"
-
-if [[ ! -r "$ap_path" ]]
-then
-    echo "ERROR: could not read file at $ap_path"
-    echo "Make sure it exists and you have permissions to read it, then try again."
-    exit 1
-fi
-
-# CHECK CONFIGURATION PARAMETERS FUNCTION
-
-function check_config {
-    missing_configs=()
-    for cur_req_config in $($1 get_required_config)
-    do
-        if [[ -z "${!cur_req_config}" ]]
-        then
-            missing_configs+=("$cur_req_config")
-        fi
-    done
-    if [[ -n "${missing_configs[@]}" ]]
+# args: plugin executable, ap_path, ap_file_ib
+function upload_plugin {
+    echo "Attempting to upload with plugin `$1`"
+    if $1 upload "$2" "$3"
     then
-        echo "Missing required configuration parameters for $1: ${missing_configs[@]}"
-        echo 'You can set them in your configuration file. Skipping this plugin for now.'
+        echo 'Upload complete, have a nice day!'
+    else
+        echo 'Plugin reported an error.'
         return 1
     fi
 }
 
 # LOOP THROUGH PLUGINS
 
+compatible_plugins=()
 for cur_plugin in "${ap_plugins[@]}"
 do
     # CHECK PLUGIN ELIGIBILITY
 
-    if $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
+    if $ab_f || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
     then
-        check_config $cur_plugin || continue
+        $ab_f || check_config $cur_plugin || continue
+        compatible_plugins+=("$cur_plugin")
+        $ab_i && continue
         # PERFORM UPLOAD
-        echo "Using plugin $cur_plugin"
-        if $cur_plugin upload "$ap_path" "$ap_file_ib"
+        if upload_plugin $cur_plugin "$ap_path" "$ap_file_ib"
         then
-            echo 'Upload complete, have a nice day!'
             exit
         else
-            echo 'Plugin reported an error, trying next one'
-            continue
+            echo 'Trying next plugin...'
         fi
     fi
 done
+
+if $ab_i
+then
+    echo "The following compatible plugins were found: ${compatible_plugins[@]}"
+    echo 'Enter the full or partial name of them, then hit enter to search...'
+else
+    echo ''
+    echo 'ERROR: No compatible plugins found. '
+fi
