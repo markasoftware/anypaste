@@ -90,6 +90,45 @@ function ap_i_yn {
     [[ "$ap_attempt" != 'n' && "$ap_attempt" != 'N' ]]
 }
 
+function ap_i_select_plugin {
+    # fail if no plugins
+    [[ ${#ap_compatible_plugins[@]} -eq 0 ]] && return 1
+    if [[ ${#ap_compatible_plugins[@]} -eq 1 ]] 
+    then
+        echo "Only one compatible plugin was found: $ap_compatible_plugins"
+        ap_selected_plugin="$ap_compatible_plugins"
+    fi
+    echo "The following plugins were found: ${ap_compatible_plugins[@]}"
+    # keep asking for search terms until we find something
+    while true
+    do
+        echo ''
+        echo 'Enter the full or partial name of a plugin, then hit enter'
+        read ap_search_term
+        ap_matched_plugins=()
+        failed='false'
+        for cur_plugin in "${ap_compatible_plugins[@]}"
+        do
+            if [[ "$cur_plugin" =~ "$ap_search_term" ]]
+            then
+                ap_matched_plugins+=("$cur_plugin")
+            fi
+        done
+        if [[ ${#ap_matched_plugins[@]} -eq 0 ]]
+        then
+            echo 'No plugins containing your search term were found.'
+            continue
+        fi
+        if [[ ${#ap_matched_plugins[@]} -gt 1 ]]
+        then
+            echo "Multiple matching plugins: ${ap_matched_plugins[@]}"
+            echo 'Please refine your search.'
+            continue
+        fi
+        ap_selected_plugin="$ap_matched_plugins"
+    done
+}
+
 # HELP
 
 ap_help='Usage: anypaste [-i] [-p plugin] [-c config_file_path] [file]
@@ -98,6 +137,8 @@ Upload `file` to an automatically selected hosting site.
 OPTIONS:
 
  -i          Enable interactive mode. Will prompt for important options.
+             Combining this with options intended for non-interactive
+             use (-p, -f, etc) has undefined behavior.
  -p          Force using the given plugin, even if it is not listed in
              the configuration file. Will not fall back to other plugins
  -f          Force: do not check plugin compatibility. Recommended only
@@ -216,73 +257,50 @@ function upload_plugin {
 
 # LOOP THROUGH PLUGINS
 
-if ! $ap_i || ap_i_yn 'Would you like to automatically find compatible plugins?'
-then
-    compatible_plugins=()
+# args: whether to check eligibility, whether to stop after first match
+function find_plugins {
+    ap_compatible_plugins=()
     for cur_plugin in "${ap_plugins[@]}"
     do
         # CHECK PLUGIN ELIGIBILITY
 
-        if $ap_f || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
+        if $1 || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
         then
-            $ap_f || check_config $cur_plugin || continue
-            compatible_plugins+=("$cur_plugin")
-            $ap_i && continue
-            # PERFORM UPLOAD
-            if upload_plugin $cur_plugin "$ap_path" "$ap_file_ib"
-            then
-                exit
-            else
-                echo 'Trying next plugin...'
-            fi
+            $1 || check_config $cur_plugin || continue
+            ap_compatible_plugins+=("$cur_plugin")
+            $2 && continue
         fi
     done
+}
+
+if $ap_i
+then
+    # INTERACTIVE
+    ap_i_yn 'Determine compatible plugins automatically?' && ap_check_compat='true' || ap_check_compat='false'
+    find_plugins $ap_check_compat false
+    # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
+    # or there are none left
+    while true
+    do
+        # If there are none left or for some reason nothing can be selected, it can fail
+        ap_i_select_plugin || exit 1
+        ap_i_yn "Attempt to upload with plugin $ap_selected_plugin?" || exit 1
+        upload_plugin "$ap_selected_plugin" "$ap_path" "$ap_file_ib" && exit ||
+            ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_selected_plugin}")
+    done
 else
-    # Copying arrays is fun!
-    compatible_plugins=("${ap_plugins[@]}")
+    # NON-INTERACTIVE
+    find_plugins $ap_f true
+    for cur_plugin in "${ap_compatible_plugins[@]}"
+    do
+        upload_plugin $cur_plugin "$ap_path" "$ap_file_ib" && exit
+    done
+    echo 'No compatible plugins found, or all compatible plugins failed.'
 fi
+
 
 if $ap_i && [[ ! ${#compatible_plugins[@]} -eq 0 ]]
 then
-    if [[ ${#compatible_plugins[@]} -eq 1 ]] 
-    then
-        echo "Only one compatible plugin was found: $compatible_plugins"
-        # we could have not put any exit stuff in this command, and put `exit $?` on the next line
-        # would that have been better? We may never know.
-        ap_i_yn 'Use it?' && upload_plugin $compatible_plugins "$ap_path" "$ap_file_ib" && exit || exit 1
-    fi
-    echo "The following plugins were found: ${compatible_plugins[@]}"
-    # keep asking for search terms until we find something
-    while true
-    do
-        echo ''
-        echo 'Enter the full or partial name of a plugin, then hit enter'
-        read ap_search_term
-        ap_matched_plugins=()
-        failed='false'
-        for cur_plugin in "${ap_plugins[@]}"
-        do
-            if [[ "$cur_plugin" =~ "$ap_search_term" ]]
-            then
-                ap_matched_plugins+=("$cur_plugin")
-            fi
-        done
-        if [[ ${#ap_matched_plugins[@]} -eq 0 ]]
-        then
-            echo 'No plugins containing your search term were found.'
-            continue
-        fi
-        if [[ ${#ap_matched_plugins[@]} -gt 1 ]]
-        then
-            echo "Multiple matching plugins: ${ap_matched_plugins[@]}"
-            echo 'Please refine your search.'
-            continue
-        fi
-        if ap_i_yn "Use plugin $ap_matched_plugins?"
-        then
-            upload_plugin $ap_matched_plugins "$ap_path" "$ap_file_ib" && exit
-        fi
-    done
 else
     echo 'ERROR: No compatible plugins found.'
     exit 1
