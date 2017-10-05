@@ -13,12 +13,29 @@ function check_size {
 # PLUGINS
 
 function anypaste-sprunge {
-    if [[ $1 == "upload" ]]
-    then
+    case $1 in
+    check_eligibility)
+        [[ "$3" =~ "^text/" ]]
+        ;;
+    upload)
         sprunge_link=$(curl -#fF "sprunge=@\"$2\"" sprunge.us)
         [[ $? -ne 0 ]] && echo 'ERROR: sprunge.us did not return HTTP 200!' && return 1
+        echo 'Reminder: file.io uploads expire after 14 days!'
         echo ''
         echo "Direct Link: $sprunge_link"
+        echo ''
+        ;;
+    esac
+}
+
+function anypaste-fileio {
+    if [[ $1 == 'upload' ]]
+    then
+        fileio_json=$(curl -#fF "file=@\"$2\"" https://file.io)
+        [[ $? -ne 0 ]] && echo 'ERROR: file.io did not return HTTP 200!' && return 1
+        fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
+        echo ''
+        echo "Direct Link: $fileio_link"
         echo ''
     fi
 }
@@ -109,10 +126,7 @@ function ap_i_select_plugin {
         failed='false'
         for cur_plugin in "${ap_compatible_plugins[@]}"
         do
-            if [[ "$cur_plugin" =~ "$ap_search_term" ]]
-            then
-                ap_matched_plugins+=("$cur_plugin")
-            fi
+            [[ "$cur_plugin" =~ "$ap_search_term" ]] && ap_matched_plugins+=("$cur_plugin")
         done
         if [[ ${#ap_matched_plugins[@]} -eq 0 ]]
         then
@@ -126,6 +140,7 @@ function ap_i_select_plugin {
             continue
         fi
         ap_selected_plugin="$ap_matched_plugins"
+        break
     done
 }
 
@@ -201,7 +216,7 @@ then
     echo "Could not find configuration file, creating one at $ap_cfg."
     echo 'The default configuration is fine unless you want to enable extra plugins.'
     # todo: possibly use base64 instead
-    cat > "$ap_cfg" <<< "ap_plugins=( 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat' 'anypaste-sprunge' )"
+    cat > "$ap_cfg" <<< "ap_plugins=( 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat' 'anypaste-sprunge' 'anypaste-fileio' )"
 fi
 
 # LOAD AND CHECK CONFIGURATION
@@ -221,6 +236,7 @@ then
     echo "Make sure it exists and you have permissions to read it, then try again."
     exit 1
 fi
+[[ -d "$ap_path" ]] && echo "Uh oh! You can't upload a directory!" && exit 1
 
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
@@ -257,7 +273,7 @@ function upload_plugin {
 
 # LOOP THROUGH PLUGINS
 
-# args: whether to check eligibility, whether to stop after first match
+# args: whether to skip compatibility checks, whether to stop after first match
 function find_plugins {
     ap_compatible_plugins=()
     for cur_plugin in "${ap_plugins[@]}"
@@ -276,8 +292,8 @@ function find_plugins {
 if $ap_i
 then
     # INTERACTIVE
-    ap_i_yn 'Determine compatible plugins automatically?' && ap_check_compat='true' || ap_check_compat='false'
-    find_plugins $ap_check_compat false
+    ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
+    find_plugins $ap_skip_compat false
     # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
     # or there are none left
     while true
@@ -296,12 +312,4 @@ else
         upload_plugin $cur_plugin "$ap_path" "$ap_file_ib" && exit
     done
     echo 'No compatible plugins found, or all compatible plugins failed.'
-fi
-
-
-if $ap_i && [[ ! ${#compatible_plugins[@]} -eq 0 ]]
-then
-else
-    echo 'ERROR: No compatible plugins found.'
-    exit 1
 fi
