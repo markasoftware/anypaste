@@ -10,17 +10,20 @@ function check_size {
     [[ $(wc -c < "$1") -lt $2 ]] || (echo "WARNING: File is of compatible type for plugin $3, but is above size limit of $2 bytes" && false)
 }
 
+function curl_form_upload {
+    ap_mime=$(echo "$ap_file_ib" | grep -o '[a-z-]*/[a-z-]*')
+    curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+}
+
 # PLUGINS
 
 function anypaste-sprunge {
     case $1 in
     check_eligibility)
-        [[ "$3" =~ "^text/" ]]
+        [[ "$ap_file_ib" =~ "^text/" ]]
         ;;
     upload)
-        sprunge_link=$(curl -#fF "sprunge=@\"$2\"" sprunge.us)
-        [[ $? -ne 0 ]] && echo 'ERROR: sprunge.us did not return HTTP 200!' && return 1
-        echo 'Reminder: file.io uploads expire after 14 days!'
+        sprunge_link=$(curl_form_upload 'sprunge' 'sprunge.us') || return 1
         echo ''
         echo "Direct Link: $sprunge_link"
         echo ''
@@ -31,9 +34,9 @@ function anypaste-sprunge {
 function anypaste-fileio {
     if [[ $1 == 'upload' ]]
     then
-        fileio_json=$(curl -#fF "file=@\"$2\"" https://file.io)
-        [[ $? -ne 0 ]] && echo 'ERROR: file.io did not return HTTP 200!' && return 1
+        fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
         fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
+        echo 'Reminder: file.io uploads expire after 14 days!'
         echo ''
         echo "Direct Link: $fileio_link"
         echo ''
@@ -44,14 +47,10 @@ function anypaste-vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
-            [[ "$3" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$2" 20000000 "anypaste-vgyme"
+            [[ "$ap_file_ib" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$ap_path" 20000000 "anypaste-vgyme"
             ;;
         upload)
-            ap_mime=$(echo "$3" | grep -o '[a-z]*/[a-z]*')
-            # sometimes curl does not set the same mime type that's returned by file -ib
-            # this causes issues (http 422 from vgy.me)
-            vgyme_json=$(curl -#fF "file=@\"$2\";type=$ap_mime" https://vgy.me/upload)
-            [[ $? -ne 0 ]] && echo 'ERROR: vgy.me did not return HTTP 200!' && return 1
+            vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
             vgyme_link=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+' | head -1)
             vgyme_direct=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+\.[a-zA-Z]+')
             vgyme_delete=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/delete/[a-zA-Z0-9]+')
@@ -67,14 +66,13 @@ function anypaste-vgyme {
 function anypaste-instaudio {
     case $1 in
         check_eligibility)
-            [[ "$3" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$2" 15000000 "anypaste-instaudio"
+            [[ "$ap_file_ib" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$ap_path" 15000000 "anypaste-instaudio"
             ;;
         upload)
-            inst_json=$(curl -#fF "audio_file=@\"$2\"" https://instaud.io/new.json)
-            [[ $? -ne 0 ]] && echo 'ERROR: instaud.io did not return HTTP 200!' && return 1
+            inst_json=$(curl_form_upload 'audio-file' 'https://instaud.io/new.json') || return 1
             inst_redirect=$(echo "$inst_json" | grep -oE '/[a-zA-Z0-9]+')
             # this is POSIX compliant, I guess
-            ap_ext="${2##*.}"
+            ap_ext="${ap_path##*.}"
             echo ''
             echo "Link: https://instaud.io$inst_redirect"
             # apparently this is POSIX compliant?
@@ -97,7 +95,14 @@ function anypaste-gfycat {
 ## BEGIN CORE ###
 #################
 
-# INTERACTIVITY FUNCTIONS
+# FUNCTIONS
+
+# exit safely, remove temporary files if any
+ap_tmp_files=()
+function ap_exit {
+    [[ -n "$ap_tmp_files" ]] && rm "${ap_tmp_files[@]}"
+    [[ -n $1 ]] && exit $1 || exit
+}
 
 # Y is always default. Word your questions better. Be positive!
 # args: message
@@ -105,6 +110,10 @@ function ap_i_yn {
     echo -n "$1 [Y/n] "
     read ap_attempt
     [[ "$ap_attempt" != 'n' && "$ap_attempt" != 'N' ]]
+}
+
+function search_compatible_plugins {
+    echo 'Not implemented yet.'
 }
 
 function ap_i_select_plugin {
@@ -146,8 +155,12 @@ function ap_i_select_plugin {
 
 # HELP
 
-ap_help='Usage: anypaste [-i] [-p plugin] [-c config_file_path] [file]
-Upload `file` to an automatically selected hosting site.
+ap_help='
+Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
+
+Upload `file`s or stdin to an automatically selected hosting sites.
+You can specify `-` as a file to read from stdin. If no files are
+listed, it will automatically attempt to use stdin.
 
 OPTIONS:
 
@@ -163,12 +176,14 @@ OPTIONS:
              /dev/null as a config file to have nothing at all, but you
              will need to set config variables in the shell manually
  -h, --help  Display this help text.
+
+Plugins may support additional options not listed here.
 '
 
 if [[ "$@" =~ '--help' ]]
 then
     echo "$ap_help"
-    exit
+    ap_exit
 fi
 
 # PARSE OPTIONS
@@ -182,7 +197,7 @@ do
     case $ap_opt in
     h)
         echo "$ap_help"
-        exit
+        ap_exit
         ;;
     i)
         ap_i='true'
@@ -223,20 +238,44 @@ fi
 
 source "$ap_cfg"
 
-[[ ${#ap_plugins[@]} -eq 0 ]] && echo 'No plugins listed in config!' && exit 1
+[[ ${#ap_plugins[@]} -eq 0 ]] && echo 'No plugins listed in config!' && ap_exit 1
 
 # GET FILE DATA
 
-ap_path=$1
-ap_file_ib=$(file -ib "$ap_path")
-
-if [[ ! -r "$ap_path" ]]
+ap_paths=()
+function ap_stdin_to_file {
+    [[ -t 0 ]] && return 1
+    ap_rand_filename=$(tr -dc a-zA-Z0-9 < /dev/urandom | head -c 20)
+    ap_tmp_path="/tmp/anypaste-$ap_rand_filename"
+    cat > "$ap_tmp_path"
+    ap_paths+=("$ap_tmp_path")
+    ap_tmp_files+=("$ap_tmp_path")
+}
+if [[ $# -gt 0 ]]
 then
-    echo "ERROR: could not read file at $ap_path"
-    echo "Make sure it exists and you have permissions to read it, then try again."
-    exit 1
+    # files were specified on the command line
+    ap_found_stdin='false'
+    for i in "$@"
+    do
+        if [[ "$i" == "-" ]]
+        then
+            $ap_found_stdin && echo "Don't specify stdin multiple times, you twerp!" && ap_exit 1
+            ap_found_stdin='true'
+            ap_stdin_to_file || { echo 'ERROR: stdin is a terminal!' && ap_exit; }
+        else
+            ap_paths+=("$i")
+        fi        
+    done
+else
+    # no files on command line, try stdin
+    if ! ap_stdin_to_file
+    then
+        echo 'ERROR: no file specified and stdin is a terminal'
+        echo "$ap_help"
+        ap_exit
+    fi
 fi
-[[ -d "$ap_path" ]] && echo "Uh oh! You can't upload a directory!" && exit 1
+
 
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
@@ -262,7 +301,7 @@ function check_config {
 # args: plugin executable, ap_path, ap_file_ib
 function upload_plugin {
     echo "Attempting to upload with plugin $1"
-    if $1 upload "$2" "$3"
+    if $1 upload
     then
         echo 'Upload complete, have a nice day!'
     else
@@ -289,27 +328,45 @@ function find_plugins {
     done
 }
 
-if $ap_i
-then
-    # INTERACTIVE
-    ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
-    find_plugins $ap_skip_compat false
-    # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
-    # or there are none left
-    while true
-    do
-        # If there are none left or for some reason nothing can be selected, it can fail
-        ap_i_select_plugin || exit 1
-        ap_i_yn "Attempt to upload with plugin $ap_selected_plugin?" || exit 1
-        upload_plugin "$ap_selected_plugin" "$ap_path" "$ap_file_ib" && exit ||
-            ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_selected_plugin}")
-    done
-else
-    # NON-INTERACTIVE
-    find_plugins $ap_f true
-    for cur_plugin in "${ap_compatible_plugins[@]}"
-    do
-        upload_plugin $cur_plugin "$ap_path" "$ap_file_ib" && exit
-    done
-    echo 'No compatible plugins found, or all compatible plugins failed.'
-fi
+function upload_loop {
+    if [[ ! -r "$ap_path" ]]
+    then
+        echo "ERROR: could not read file at $ap_path"
+        echo "Make sure it exists and you have permissions to read it."
+        return 1
+    fi
+    [[ -d "$ap_path" ]] && echo "Uh oh! You can't upload a directory!" && return 1
+    ap_file_ib=$(file -ib "$ap_path")
+
+    if $ap_i
+    then
+        # INTERACTIVE
+        ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
+        find_plugins $ap_skip_compat false
+        # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
+        # or there are none left
+        while true
+        do
+            # If there are none left or for some reason nothing can be selected, it can fail
+            ap_i_select_plugin || return 1
+            ap_i_yn "Attempt to upload with plugin $ap_selected_plugin?" || return 1
+            upload_plugin "$ap_selected_plugin" "$ap_path" "$ap_file_ib" && return ||
+                ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_selected_plugin}")
+        done
+    else
+        # NON-INTERACTIVE
+        find_plugins $ap_f true
+        for cur_plugin in "${ap_compatible_plugins[@]}"
+        do
+            upload_plugin $cur_plugin "$ap_path" "$ap_file_ib" && ap_exit
+        done
+        echo 'No compatible plugins found, or all compatible plugins failed.'
+    fi
+}
+
+for ap_path in "${ap_paths[@]}"
+do
+    upload_loop
+done
+
+ap_exit
