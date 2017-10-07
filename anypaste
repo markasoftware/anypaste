@@ -15,6 +15,11 @@ function curl_form_upload {
     curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
+function curl_file_upload {
+    set -x
+    curl -XPOST -#fT "$ap_path" "$1" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+}
+
 # PLUGINS
 
 function anypaste-sprunge {
@@ -31,12 +36,30 @@ function anypaste-sprunge {
     esac
 }
 
+function anypaste-hastebin {
+    case $1 in
+    check_eligibility)
+        [[ "$ap_file_ib" =~ "text/" ]]
+        ;;
+    upload)
+        hastebin_json=$(curl_file_upload 'https://hastebin.com/documents') || return 1
+        echo "$hastebin_json"
+        hastebin_id=$(echo "${hastebin_json:8}" | grep -o '[a-z]*')
+        echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!'
+        echo ''
+        echo "Link: https://hastebin.com/$hastebin_id"
+        echo "Direct Link: https://hastebin.com/raw/$hastebin_id"
+        echo ''
+
+    esac
+}
+
 function anypaste-fileio {
     if [[ $1 == 'upload' ]]
     then
         fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
         fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
-        echo 'Reminder: file.io uploads expire after 14 days!'
+        echo 'Reminder: file.io uploads are deleted after 14 days!'
         echo ''
         echo "Direct Link: $fileio_link"
         echo ''
@@ -237,7 +260,18 @@ then
     echo "Could not find configuration file, creating one at $ap_cfg."
     echo 'The default configuration is fine unless you want to enable extra plugins.'
     # todo: possibly use base64 instead
-    cat > "$ap_cfg" <<< "ap_plugins=( 'anypaste-vgyme' 'anypaste-instaudio' 'anypaste-gfycat' 'anypaste-sprunge' 'anypaste-fileio' )"
+    cat > "$ap_cfg" <<< "ap_plugins=(
+# Videos/Gifs
+'anypaste-gfycat'
+# Images
+'anypaste-vgyme'
+# Audio
+'anypaste-instaudio'
+# Text
+'anypaste-hastebin' 'anypaste-sprunge'
+# Any file
+'anypaste-fileio'
+)"
 fi
 
 # LOAD AND CHECK CONFIGURATION
