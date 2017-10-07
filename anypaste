@@ -20,7 +20,7 @@ function curl_form_upload {
 function anypaste-sprunge {
     case $1 in
     check_eligibility)
-        [[ "$ap_file_ib" =~ "^text/" ]]
+        [[ "$ap_file_ib" =~ "text/" ]]
         ;;
     upload)
         sprunge_link=$(curl_form_upload 'sprunge' 'sprunge.us') || return 1
@@ -112,8 +112,35 @@ function ap_i_yn {
     [[ "$ap_attempt" != 'n' && "$ap_attempt" != 'N' ]]
 }
 
+# will search $ap_compatible_plugins for search term. If successful, matched plugin
+# will go in $ap_selected_plugin. If failed, it will print an error and return 1
+# Also, if search term is the exact name of an executable, it will be ok
+# args: search term
 function search_compatible_plugins {
-    echo 'Not implemented yet.'
+    # If empty, use first plugin
+    [[ -z "$1" ]] && ap_selected_plugin="$ap_compatible_plugins" && return
+    # If the plugin is the exact name of a command, we can use it even if not in config
+    command -v "$1" > /dev/null && ap_selected_plugin="$1" && return
+    ap_matched_plugins=()
+    for cur_plugin in "${ap_compatible_plugins[@]}"
+    do
+        [[ "$cur_plugin" =~ "$1" ]] && ap_matched_plugins+=("$cur_plugin")
+    done
+    case ${#ap_matched_plugins[@]} in
+    0)
+        echo "No plugins matched '$1'."
+        echo "Available plugins are: ${ap_compatible_plugins[@]}"
+        return 1
+        ;;
+    1)
+        ap_selected_plugin="$ap_matched_plugins"
+        ;;
+    *)
+        echo "Multiple plugins matched '$1': ${ap_matched_plugins[@]}"
+        echo 'Refine your search and try again.'
+        return 1
+        ;;
+    esac
 }
 
 function ap_i_select_plugin {
@@ -129,27 +156,9 @@ function ap_i_select_plugin {
     while true
     do
         echo ''
-        echo 'Enter the full or partial name of a plugin, then hit enter'
+        echo 'Enter the (partial) name of a plugin, or nothing for automatic selection'
         read ap_search_term
-        ap_matched_plugins=()
-        failed='false'
-        for cur_plugin in "${ap_compatible_plugins[@]}"
-        do
-            [[ "$cur_plugin" =~ "$ap_search_term" ]] && ap_matched_plugins+=("$cur_plugin")
-        done
-        if [[ ${#ap_matched_plugins[@]} -eq 0 ]]
-        then
-            echo 'No plugins containing your search term were found.'
-            continue
-        fi
-        if [[ ${#ap_matched_plugins[@]} -gt 1 ]]
-        then
-            echo "Multiple matching plugins: ${ap_matched_plugins[@]}"
-            echo 'Please refine your search.'
-            continue
-        fi
-        ap_selected_plugin="$ap_matched_plugins"
-        break
+        search_compatible_plugins "$ap_search_term" && break
     done
 }
 
@@ -166,11 +175,11 @@ OPTIONS:
 
  -i          Enable interactive mode. Will prompt for important options.
              Combining this with options intended for non-interactive
-             use (-p, -f, etc) has undefined behavior.
+             use (e.g, -p) has undefined behavior. If you are reading
+             your file from stdin, -i might not work properly.
  -p          Force using the given plugin, even if it is not listed in
              the configuration file. Will not fall back to other plugins
- -f          Force: do not check plugin compatibility. Recommended only
-             to use in combination with -p
+             or check plugin compatibility.
  -c          Use the specified configuration file instead of the default
              one located at $XDG_CONFIG_HOME/anypaste.conf. You can use
              /dev/null as a config file to have nothing at all, but you
@@ -189,10 +198,10 @@ fi
 # PARSE OPTIONS
 
 ap_i='false'
-ap_f='false'
+ap_p=""
 ap_cfg=""
 
-while getopts 'fhip:c:' ap_opt
+while getopts 'hip:c:' ap_opt
 do
     case $ap_opt in
     h)
@@ -202,11 +211,8 @@ do
     i)
         ap_i='true'
         ;;
-    f)
-        ap_f='true'
-        ;;
     p)
-        echo 'Manual plugin selection not supported yet, sorry :('
+        ap_p="$OPTARG"
         ;;
     c)
         ap_cfg="$OPTARG"
@@ -303,7 +309,7 @@ function upload_plugin {
     echo "Attempting to upload with plugin $1"
     if $1 upload
     then
-        echo 'Upload complete, have a nice day!'
+        echo 'Upload complete.'
     else
         echo 'Plugin reported an error.'
         return 1
@@ -338,6 +344,7 @@ function upload_loop {
     [[ -d "$ap_path" ]] && echo "Uh oh! You can't upload a directory!" && return 1
     ap_file_ib=$(file -ib "$ap_path")
 
+    echo "Current file: $ap_path"
     if $ap_i
     then
         # INTERACTIVE
@@ -355,12 +362,19 @@ function upload_loop {
         done
     else
         # NON-INTERACTIVE
-        find_plugins $ap_f true
-        for cur_plugin in "${ap_compatible_plugins[@]}"
-        do
-            upload_plugin $cur_plugin "$ap_path" "$ap_file_ib" && ap_exit
-        done
-        echo 'No compatible plugins found, or all compatible plugins failed.'
+        if [[ -n "$ap_p" ]]
+        then
+            ap_compatible_plugins=("${ap_plugins[@]}")
+            search_compatible_plugins "$ap_p"
+            upload_plugin "$ap_selected_plugin" && return
+        else
+            find_plugins false true
+            for cur_plugin in "${ap_compatible_plugins[@]}"
+            do
+                upload_plugin "$cur_plugin" "$ap_path" "$ap_file_ib" && return
+            done
+            echo 'No compatible plugins found, or all compatible plugins failed.'
+        fi
     fi
 }
 
@@ -368,5 +382,6 @@ for ap_path in "${ap_paths[@]}"
 do
     upload_loop
 done
+echo 'All files processed. Have a nice day!'
 
 ap_exit
