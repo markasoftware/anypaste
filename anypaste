@@ -7,7 +7,7 @@
 
 # Args: File to check, max size, plugin name
 function check_size {
-    [[ $(wc -c < "$1") -lt $2 ]] || (echo "WARNING: File is of compatible type for plugin $3, but is above size limit of $2 bytes" && false)
+    [[ $(wc -c < "$ap_path") -lt $1 ]] || (echo "WARNING: File is of compatible type for plugin $ap_selected_plugin, but is above size limit of $1 bytes" && false)
 }
 
 function curl_form_upload {
@@ -16,7 +16,6 @@ function curl_form_upload {
 }
 
 function curl_file_upload {
-    set -x
     curl -XPOST -#fT "$ap_path" "$1" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
@@ -36,6 +35,20 @@ function anypaste-sprunge {
     esac
 }
 
+function anypaste-ixio {
+    case $1 in
+    check_eligibility)
+        [[ "$ap_file_ib" =~ "text/" ]]
+        ;;
+    upload)
+        ixio_link=$(curl_form_upload 'f:1' ix.io)
+        echo ''
+        echo "Direct Link: $ixio_link"
+        echo ''
+        ;;
+    esac
+}
+
 function anypaste-hastebin {
     case $1 in
     check_eligibility)
@@ -43,7 +56,6 @@ function anypaste-hastebin {
         ;;
     upload)
         hastebin_json=$(curl_file_upload 'https://hastebin.com/documents') || return 1
-        echo "$hastebin_json"
         hastebin_id=$(echo "${hastebin_json:8}" | grep -o '[a-z]*')
         echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!'
         echo ''
@@ -70,7 +82,7 @@ function anypaste-vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
-            [[ "$ap_file_ib" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size "$ap_path" 20000000 "anypaste-vgyme"
+            [[ "$ap_file_ib" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
             ;;
         upload)
             vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
@@ -89,7 +101,7 @@ function anypaste-vgyme {
 function anypaste-instaudio {
     case $1 in
         check_eligibility)
-            [[ "$ap_file_ib" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size "$ap_path" 15000000 "anypaste-instaudio"
+            [[ "$ap_file_ib" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
             ;;
         upload)
             inst_json=$(curl_form_upload 'audio-file' 'https://instaud.io/new.json') || return 1
@@ -102,6 +114,28 @@ function anypaste-instaudio {
             echo "Direct Link: https://instaud.io/_$inst_redirect.$ap_ext"
             echo ''
             ;;
+    esac
+}
+
+function anypaste-streamable {
+    case $1 in
+    check_eligibility)
+        [[ "$ap_file_ib" =~ 'video/'|'image/gif' ]] && check_size 10000000000
+        ;;
+    get_required_config)
+        echo 'streamable_email'
+        echo 'streamable_password'
+        ;;
+    upload)
+        streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
+        # oof owie ouch
+        # 4 processes, two `revs`, and one simple string manipulation. Watch the latest episode
+        # of "Bash Hackers" on Cartoon Network at 5:30 central.
+        streamable_shortcode=$(echo "$streamable_json" | rev | grep -o '\w*' | head -n 1 | rev)
+        echo ''
+        echo "Link: https://streamable.com/$streamable_shortcode"
+        echo ''
+        ;;
     esac
 }
 
@@ -203,6 +237,8 @@ OPTIONS:
  -p          Force using the given plugin, even if it is not listed in
              the configuration file. Will not fall back to other plugins
              or check plugin compatibility.
+ -f          Do not check plugin compatibility. Without -p, it uses the
+             first listed plugin in the config file.
  -c          Use the specified configuration file instead of the default
              one located at $XDG_CONFIG_HOME/anypaste.conf. You can use
              /dev/null as a config file to have nothing at all, but you
@@ -221,10 +257,11 @@ fi
 # PARSE OPTIONS
 
 ap_i='false'
+ap_f='false'
 ap_p=""
 ap_cfg=""
 
-while getopts 'hip:c:' ap_opt
+while getopts 'fhip:c:' ap_opt
 do
     case $ap_opt in
     h)
@@ -236,6 +273,9 @@ do
         ;;
     p)
         ap_p="$OPTARG"
+        ;;
+    f)
+        ap_f='true'
         ;;
     c)
         ap_cfg="$OPTARG"
@@ -260,18 +300,20 @@ then
     echo "Could not find configuration file, creating one at $ap_cfg."
     echo 'The default configuration is fine unless you want to enable extra plugins.'
     # todo: possibly use base64 instead
-    cat > "$ap_cfg" <<< "ap_plugins=(
+    cat > "$ap_cfg" << 'CFG'
+ap_plugins=(
 # Videos/Gifs
-'anypaste-gfycat'
+'anypaste-streamable' 'anypaste-gfycat'
 # Images
 'anypaste-vgyme'
 # Audio
 'anypaste-instaudio'
 # Text
-'anypaste-hastebin' 'anypaste-sprunge'
+'anypaste-hastebin' 'anypaste-ixio' 'anypaste-sprunge'
 # Any file
 'anypaste-fileio'
-)"
+)
+CFG
 fi
 
 # LOAD AND CHECK CONFIGURATION
@@ -319,7 +361,7 @@ fi
 
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
-function check_config {
+function check_eligibility {
     missing_configs=()
     for cur_req_config in $($1 get_required_config)
     do
@@ -331,17 +373,18 @@ function check_config {
     if [[ -n "${missing_configs[@]}" ]]
     then
         echo "Missing required configuration parameters for $1: ${missing_configs[@]}"
-        echo 'You can set them in your configuration file. Skipping this plugin for now.'
+        echo 'You can set them in your configuration file.'
         return 1
     fi
+    "$1" check_eligibility || return 1
 }
 
 # UPLOAD FUNCTION
 
 # args: plugin executable, ap_path, ap_file_ib
 function upload_plugin {
-    echo "Attempting to upload with plugin $1"
-    if $1 upload
+    echo "Attempting to upload with plugin $ap_selected_plugin"
+    if $ap_selected_plugin upload
     then
         echo 'Upload complete.'
     else
@@ -352,19 +395,13 @@ function upload_plugin {
 
 # LOOP THROUGH PLUGINS
 
-# args: whether to skip compatibility checks, whether to stop after first match
+# args: whether to check compatibility
 function find_plugins {
+    $1 && ap_compatible_plugins=("${ap_plugins[@]}") && return
     ap_compatible_plugins=()
     for cur_plugin in "${ap_plugins[@]}"
     do
-        # CHECK PLUGIN ELIGIBILITY
-
-        if $1 || $cur_plugin check_eligibility "$ap_path" "$ap_file_ib"
-        then
-            $1 || check_config $cur_plugin || continue
-            ap_compatible_plugins+=("$cur_plugin")
-            $2 && continue
-        fi
+        check_eligibility "$cur_plugin" && ap_compatible_plugins+=("$cur_plugin")
     done
 }
 
@@ -382,8 +419,8 @@ function upload_loop {
     if $ap_i
     then
         # INTERACTIVE
-        ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
-        find_plugins $ap_skip_compat false
+        ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='true' || ap_skip_compat='false'
+        find_plugins $ap_skip_compat
         # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
         # or there are none left
         while true
@@ -391,31 +428,32 @@ function upload_loop {
             # If there are none left or for some reason nothing can be selected, it can fail
             ap_i_select_plugin || return 1
             ap_i_yn "Attempt to upload with plugin $ap_selected_plugin?" || return 1
-            upload_plugin "$ap_selected_plugin" "$ap_path" "$ap_file_ib" && return ||
+            upload_plugin && return ||
                 ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_selected_plugin}")
         done
     else
         # NON-INTERACTIVE
         if [[ -n "$ap_p" ]]
         then
-            ap_compatible_plugins=("${ap_plugins[@]}")
-            search_compatible_plugins "$ap_p"
-            upload_plugin "$ap_selected_plugin" && return
+            find_plugins "$ap_f"
+            search_compatible_plugins "$ap_p" || return 1
+            upload_plugin && return
         else
-            find_plugins false true
-            for cur_plugin in "${ap_compatible_plugins[@]}"
+            find_plugins "$ap_f"
+            for ap_selected_plugin in "${ap_compatible_plugins[@]}"
             do
-                upload_plugin "$cur_plugin" "$ap_path" "$ap_file_ib" && return
+                upload_plugin && return
             done
             echo 'No compatible plugins found, or all compatible plugins failed.'
         fi
     fi
 }
 
+ap_exit_code=0
 for ap_path in "${ap_paths[@]}"
 do
-    upload_loop
+    upload_loop || ap_exit_code=1
 done
 echo 'All files processed. Have a nice day!'
 
-ap_exit
+ap_exit $ap_exit_code
