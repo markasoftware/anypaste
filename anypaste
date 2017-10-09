@@ -7,7 +7,11 @@
 
 # Args: File to check, max size, plugin name
 function check_size {
-    [[ $(wc -c < "$ap_path") -lt $1 ]] || (echo "WARNING: File is of compatible type for plugin $ap_selected_plugin, but is above size limit of $1 bytes" && false)
+    if ! [[ $(wc -c < "$ap_path") -lt $1 ]]
+    then
+        echo "WARNING: File is of compatible type for plugin $ap_plugin, but is above size limit of $1 bytes"
+        return 1
+    fi
 }
 
 function curl_form_upload {
@@ -98,6 +102,21 @@ function anypaste-vgyme {
     esac
 }
 
+function anypaste-tinyimg {
+    case $1 in
+        check_eligibility)
+            [[ "$ap_file_ib" =~ "image/" ]] && check_size 10000000
+            ;;
+        upload)
+            tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
+            tinyimg_filename=$(echo "$tinyimg_json" | grep -o '[a-zA-Z0-9.]*' | tail -1)
+            echo ''
+            echo "Direct Link: https://tinyimg.io/i/$tinyimg_filename"
+            echo ''
+            ;;
+    esac
+}
+
 function anypaste-instaudio {
     case $1 in
         check_eligibility)
@@ -170,18 +189,18 @@ function ap_i_yn {
 }
 
 # will search $ap_compatible_plugins for search term. If successful, matched plugin
-# will go in $ap_selected_plugin. If failed, it will print an error and return 1
+# will go in $ap_plugin. If failed, it will print an error and return 1
 # Also, if search term is the exact name of an executable, it will be ok
 # args: search term
 function search_compatible_plugins {
     # If empty, use first plugin
-    [[ -z "$1" ]] && ap_selected_plugin="$ap_compatible_plugins" && return
+    [[ -z "$1" ]] && ap_plugin="$ap_compatible_plugins" && return
     # If the plugin is the exact name of a command, we can use it even if not in config
-    command -v "$1" > /dev/null && ap_selected_plugin="$1" && return
+    command -v "$1" > /dev/null && ap_plugin="$1" && return
     ap_matched_plugins=()
-    for cur_plugin in "${ap_compatible_plugins[@]}"
+    for ap_plugin in "${ap_compatible_plugins[@]}"
     do
-        [[ "$cur_plugin" =~ "$1" ]] && ap_matched_plugins+=("$cur_plugin")
+        [[ "$ap_plugin" =~ "$1" ]] && ap_matched_plugins+=("$ap_plugin")
     done
     case ${#ap_matched_plugins[@]} in
     0)
@@ -190,7 +209,7 @@ function search_compatible_plugins {
         return 1
         ;;
     1)
-        ap_selected_plugin="$ap_matched_plugins"
+        ap_plugin="$ap_matched_plugins"
         ;;
     *)
         echo "Multiple plugins matched '$1': ${ap_matched_plugins[@]}"
@@ -206,7 +225,7 @@ function ap_i_select_plugin {
     if [[ ${#ap_compatible_plugins[@]} -eq 1 ]] 
     then
         echo "Only one compatible plugin was found: $ap_compatible_plugins"
-        ap_selected_plugin="$ap_compatible_plugins"
+        ap_plugin="$ap_compatible_plugins"
     fi
     echo "The following plugins were found: ${ap_compatible_plugins[@]}"
     # keep asking for search terms until we find something
@@ -305,7 +324,7 @@ ap_plugins=(
 # Videos/Gifs
 'anypaste-streamable' 'anypaste-gfycat'
 # Images
-'anypaste-vgyme'
+'anypaste-vgyme' 'anypaste-tinyimg'
 # Audio
 'anypaste-instaudio'
 # Text
@@ -363,7 +382,7 @@ fi
 
 function check_eligibility {
     missing_configs=()
-    for cur_req_config in $($1 get_required_config)
+    for cur_req_config in $($ap_plugin get_required_config)
     do
         if [[ -z "${!cur_req_config}" ]]
         then
@@ -372,19 +391,19 @@ function check_eligibility {
     done
     if [[ -n "${missing_configs[@]}" ]]
     then
-        echo "Missing required configuration parameters for $1: ${missing_configs[@]}"
+        echo "Missing required configuration parameters for $ap_plugin: ${missing_configs[@]}"
         echo 'You can set them in your configuration file.'
         return 1
     fi
-    "$1" check_eligibility || return 1
+    $ap_plugin check_eligibility || return 1
 }
 
 # UPLOAD FUNCTION
 
 # args: plugin executable, ap_path, ap_file_ib
 function upload_plugin {
-    echo "Attempting to upload with plugin $ap_selected_plugin"
-    if $ap_selected_plugin upload
+    echo "Attempting to upload with plugin $ap_plugin"
+    if $ap_plugin upload
     then
         echo 'Upload complete.'
     else
@@ -399,9 +418,9 @@ function upload_plugin {
 function find_plugins {
     $1 && ap_compatible_plugins=("${ap_plugins[@]}") && return
     ap_compatible_plugins=()
-    for cur_plugin in "${ap_plugins[@]}"
+    for ap_plugin in "${ap_plugins[@]}"
     do
-        check_eligibility "$cur_plugin" && ap_compatible_plugins+=("$cur_plugin")
+        check_eligibility && ap_compatible_plugins+=("$ap_plugin")
     done
 }
 
@@ -419,7 +438,7 @@ function upload_loop {
     if $ap_i
     then
         # INTERACTIVE
-        ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='true' || ap_skip_compat='false'
+        ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
         find_plugins $ap_skip_compat
         # keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
         # or there are none left
@@ -427,9 +446,9 @@ function upload_loop {
         do
             # If there are none left or for some reason nothing can be selected, it can fail
             ap_i_select_plugin || return 1
-            ap_i_yn "Attempt to upload with plugin $ap_selected_plugin?" || return 1
+            ap_i_yn "Attempt to upload with plugin $ap_plugin?" || return 1
             upload_plugin && return ||
-                ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_selected_plugin}")
+                ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_plugin}")
         done
     else
         # NON-INTERACTIVE
@@ -440,7 +459,7 @@ function upload_loop {
             upload_plugin && return
         else
             find_plugins "$ap_f"
-            for ap_selected_plugin in "${ap_compatible_plugins[@]}"
+            for ap_plugin in "${ap_compatible_plugins[@]}"
             do
                 upload_plugin && return
             done
@@ -456,4 +475,4 @@ do
 done
 echo 'All files processed. Have a nice day!'
 
-ap_exit $ap_exit_code
+ap_exit $ap_exit_codeap_selected_plugin
