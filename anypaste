@@ -20,7 +20,7 @@ function curl_form_upload {
 }
 
 function curl_file_upload {
-    curl -XPOST -#fT "$ap_path" "$1" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+    curl -X$1 -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
 # PLUGINS
@@ -59,7 +59,7 @@ function anypaste-hastebin {
         [[ "$ap_file_ib" =~ "text/" ]]
         ;;
     upload)
-        hastebin_json=$(curl_file_upload 'https://hastebin.com/documents') || return 1
+        hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
         hastebin_id=$(echo "${hastebin_json:8}" | grep -o '[a-z]*')
         echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!'
         echo ''
@@ -123,7 +123,7 @@ function anypaste-instaudio {
             [[ "$ap_file_ib" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
             ;;
         upload)
-            inst_json=$(curl_form_upload 'audio-file' 'https://instaud.io/new.json') || return 1
+            inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
             inst_redirect=$(echo "$inst_json" | grep -oE '/[a-zA-Z0-9]+')
             # this is POSIX compliant, I guess
             ap_ext="${ap_path##*.}"
@@ -150,7 +150,7 @@ function anypaste-streamable {
         # oof owie ouch
         # 4 processes, two `revs`, and one simple string manipulation. Watch the latest episode
         # of "Bash Hackers" on Cartoon Network at 5:30 central.
-        streamable_shortcode=$(echo "$streamable_json" | rev | grep -o '\w*' | head -n 1 | rev)
+        streamable_shortcode=$(echo "$streamable_json" | grep -o '\w*' | tail -n 1)
         echo ''
         echo "Link: https://streamable.com/$streamable_shortcode"
         echo ''
@@ -161,8 +161,44 @@ function anypaste-streamable {
 function anypaste-gfycat {
     case $1 in
         check_eligibility)
-            return 1
+            [[ "$ap_file_ib" =~ "video/"|"image/gif" ]]
             ;;
+        upload)
+            # this is one of the more complex ones
+            # get the key/name of the gfy
+            gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
+                echo 'Getting gfycat key did not return HTTP 200!'
+                return 1;
+            }
+            gfy_name=$(echo "$gfy_init_json" | grep -o '[a-zA-Z]*' | awk 'NR==4')
+            # the file being uploaded must have the same name as the key
+            # since i don't know how to set it using curl options, I'm
+            # just using a symbolic link with the correct name.
+            ln -s "$ap_path" "/tmp/$gfy_name"
+            curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null
+            rm -f "/tmp/$gfy_name"
+            # We have to wait for encoding (unlike with streamable) because
+            # during encoding, if it has the same hash as another gfy, it
+            # returns the (different) link to the original gfy, and the new
+            # one won't work. It's possible to override this to upload with
+            # the new URL regardless, but i don't need to use up extra space
+            # on the gfycat servers.
+            echo 'Waiting for remote encoding to complete...'
+            while true
+            do
+                sleep 4
+                gfy_status=$(curl -fs https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name) || {
+                    echo 'Status check request did not return HTTP 200!'
+                    echo "Your file might end up here anyway: https://gfycat.com/$gfy_name"
+                    return 1;
+                }
+                [[ "$gfy_status" =~ 'complete' ]] && break
+            done
+            gfy_final_name=$(echo "$gfy_status" | grep -o 'gfy[Nn]ame":"[a-zA-Z]*' | head -1 | cut -c 11-)
+            echo ''
+            echo "Link: https://gfycat.com/$gfy_final_name"
+            echo "Direct(ish) Link: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
+            echo ''
     esac
 }
 
