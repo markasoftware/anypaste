@@ -15,7 +15,7 @@ function check_size {
 }
 
 function curl_form_upload {
-    ap_mime=$(echo "$ap_file_ib" | grep -o '[a-z-]*/[a-z-]*')
+    ap_mime=$(echo "$ap_file_ib" | grep -o '[_.a-z-]*/[_.a-z-]*')
     curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
@@ -175,7 +175,7 @@ function anypaste-gfycat {
             # since i don't know how to set it using curl options, I'm
             # just using a symbolic link with the correct name.
             ln -s "$ap_path" "/tmp/$gfy_name"
-            curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null
+            curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
             rm -f "/tmp/$gfy_name"
             # We have to wait for encoding (unlike with streamable) because
             # during encoding, if it has the same hash as another gfy, it
@@ -199,6 +199,24 @@ function anypaste-gfycat {
             echo "Link: https://gfycat.com/$gfy_final_name"
             echo "Direct(ish) Link: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
             echo ''
+    esac
+}
+
+function anypaste-docdroid {
+    case $1 in
+    get_required_config)
+        echo 'docdroid_access_token'
+        ;;
+    check_eligibility)
+        [[ "$ap_file_ib" =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/plain'|'text/rtf' ]]
+        ;;
+    upload)
+        docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
+        docdroid_id=$(echo "$docdroid_json" | grep -o '[a-zA-Z0-9]*' | awk 'NR==3')
+        echo ''
+        echo "Link: http://docdro.id/$docdroid_id"
+        echo ''
+        ;;
     esac
 }
 
@@ -365,6 +383,8 @@ ap_plugins=(
 'anypaste-instaudio'
 # Text
 'anypaste-hastebin' 'anypaste-ixio' 'anypaste-sprunge'
+# Documents
+'anypaste-docdroid'
 # Any file
 'anypaste-fileio'
 )
@@ -417,6 +437,7 @@ fi
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
 function check_eligibility {
+    $ap_plugin check_eligibility || return 1
     missing_configs=()
     for cur_req_config in $($ap_plugin get_required_config)
     do
@@ -431,7 +452,6 @@ function check_eligibility {
         echo 'You can set them in your configuration file.'
         return 1
     fi
-    $ap_plugin check_eligibility || return 1
 }
 
 # UPLOAD FUNCTION
@@ -470,7 +490,7 @@ function upload_loop {
     [[ -d "$ap_path" ]] && echo "Uh oh! You can't upload a directory!" && return 1
     ap_file_ib=$(file -ib "$ap_path")
 
-    echo "Current file: $ap_path"
+    echo "Current file: $ap_user_path"
     if $ap_i
     then
         # INTERACTIVE
@@ -480,9 +500,8 @@ function upload_loop {
         # or there are none left
         while true
         do
-            # If there are none left or for some reason nothing can be selected, it can fail
             ap_i_select_plugin || return 1
-            ap_i_yn "Attempt to upload with plugin $ap_plugin?" || return 1
+            ap_i_yn "Attempt to upload with plugin $ap_plugin?" || continue
             upload_plugin && return ||
                 ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_plugin}")
         done
@@ -505,8 +524,9 @@ function upload_loop {
 }
 
 ap_exit_code=0
-for ap_path in "${ap_paths[@]}"
+for ap_user_path in "${ap_paths[@]}"
 do
+    ap_path=$(readlink -f "$ap_user_path")
     upload_loop || ap_exit_code=1
 done
 echo 'All files processed. Have a nice day!'
