@@ -24,7 +24,7 @@ function curl_file_upload {
 
 # PLUGINS
 
-function anypaste-sprunge {
+function anypaste_sprunge {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -38,7 +38,7 @@ function anypaste-sprunge {
     esac
 }
 
-function anypaste-ixio {
+function anypaste_ixio {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -52,7 +52,7 @@ function anypaste-ixio {
     esac
 }
 
-function anypaste-hastebin {
+function anypaste_hastebin {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -69,19 +69,46 @@ function anypaste-hastebin {
     esac
 }
 
-function anypaste-fileio {
-    if [[ $1 == 'upload' ]]
-    then
+function anypaste_fileio {
+    case $1 in
+    check_eligibility)
+        check_size 5000000000
+        ;;
+    upload)
         fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
         fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
         echo 'Reminder: file.io uploads are deleted after 14 days!'
         echo ''
         echo "Direct Link: $fileio_link"
         echo ''
-    fi
+        ;;
+    esac
 }
 
-function anypaste-vgyme {
+function anypaste_jirafeau {
+    case $1 in
+    check_eligibility)
+        check_size 200000000
+        ;;
+    upload)
+        # It took a long time to figure out that it required http 1.0
+        # For future reference, apparently http 417 means that, i guess?
+        jf_res=$(curl --http1.0 -#fF 'time=month' -F "file=@$ap_path;type=$ap_mime" 'https://jirafeau.net/script.php') || return 1
+        jf_pub=$(echo "$jf_res" | head -1)
+        jf_priv=$(echo "$jf_res" | tail -1)
+        jf_base="https://jirafeau.net/f.php?h=$jf_pub"
+        echo 'Reminder: jirafeau.net uploads are deleted after about a month!'
+        echo ''
+        echo "Link: $jf_base"
+        echo "Direct Link (View): $jf_base&p=1"
+        echo "Direct Link (Download): $jf_base&d=1"
+        echo "Delete: $jf_base&d=$jf_priv"
+        echo '' 
+        ;;
+    esac
+}
+
+function anypaste_vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
@@ -101,7 +128,7 @@ function anypaste-vgyme {
     esac
 }
 
-function anypaste-tinyimg {
+function anypaste_tinyimg {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ "image/" ]] && check_size 10000000
@@ -116,7 +143,7 @@ function anypaste-tinyimg {
     esac
 }
 
-function anypaste-instaudio {
+function anypaste_instaudio {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
@@ -135,7 +162,7 @@ function anypaste-instaudio {
     esac
 }
 
-function anypaste-streamable {
+function anypaste_streamable {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ 'video/'|'image/gif' ]] && check_size 10000000000
@@ -157,7 +184,7 @@ function anypaste-streamable {
     esac
 }
 
-function anypaste-gfycat {
+function anypaste_gfycat {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ "video/"|"image/gif" ]]
@@ -165,10 +192,18 @@ function anypaste-gfycat {
         upload)
             # this is one of the more complex ones
             # get the key/name of the gfy
-            gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
-                echo 'Getting gfycat key did not return HTTP 200!'
-                return 1;
-            }
+            if [[ -n "$gfycat_duplicates" ]]
+            then
+                gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
+                    echo 'Getting gfycat key did not return HTTP 200!'
+                    return 1;
+                }
+            else
+                gfy_init_json=$(curl -sfXPOST -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
+                    echo 'Getting gfycat key did not return HTTP 200!'
+                    return 1;
+                }
+            fi            
             gfy_name=$(echo "$gfy_init_json" | grep -o '[a-zA-Z]*' | awk 'NR==4')
             # the file being uploaded must have the same name as the key
             # since i don't know how to set it using curl options, I'm
@@ -176,24 +211,30 @@ function anypaste-gfycat {
             ln -s "$ap_path" "/tmp/$gfy_name"
             curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
             rm -f "/tmp/$gfy_name"
-            # We have to wait for encoding (unlike with streamable) because
-            # during encoding, if it has the same hash as another gfy, it
-            # returns the (different) link to the original gfy, and the new
-            # one won't work. It's possible to override this to upload with
-            # the new URL regardless, but i don't need to use up extra space
-            # on the gfycat servers.
-            echo 'Waiting for remote encoding to complete...'
-            while true
-            do
-                sleep 4
-                gfy_status=$(curl -fs https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name) || {
-                    echo 'Status check request did not return HTTP 200!'
-                    echo "Your file might end up here anyway: https://gfycat.com/$gfy_name"
-                    return 1;
-                }
-                [[ "$gfy_status" =~ 'complete' ]] && break
-            done
-            gfy_final_name=$(echo "$gfy_status" | grep -o 'gfy[Nn]ame":"[a-zA-Z]*' | head -1 | cut -c 11-)
+            if [[ -n "$gfycat_duplicates" ]]
+            then
+                # We have to wait for encoding (unlike with streamable) because
+                # during encoding, if it has the same hash as another gfy, it
+                # returns the (different) link to the original gfy, and the new
+                # one won't work. It's possible to override this to upload with
+                # the new URL regardless, but i don't need to use up extra space
+                # on the gfycat servers.
+                echo 'Waiting for remote encoding to complete...'
+                while true
+                do
+                    sleep 4
+                    gfy_status=$(curl -fs https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name) || {
+                        echo 'Status check request did not return HTTP 200!'
+                        echo "Your file might end up here anyway: https://gfycat.com/$gfy_name"
+                        return 1;
+                    }
+                    [[ "$gfy_status" =~ 'complete' ]] && break
+                done
+                gfy_final_name=$(echo "$gfy_status" | grep -o 'gfy[Nn]ame":"[a-zA-Z]*' | head -1 | cut -c 11-)
+            else
+                gfy_final_name="$gfy_name"
+                echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.'
+            fi
             echo ''
             echo "Link: https://gfycat.com/$gfy_final_name"
             echo "Direct(ish) Link: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
@@ -201,13 +242,13 @@ function anypaste-gfycat {
     esac
 }
 
-function anypaste-docdroid {
+function anypaste_docdroid {
     case $1 in
     get_required_config)
         echo 'docdroid_access_token'
         ;;
     check_eligibility)
-        [[ "$ap_mime" =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/plain'|'text/rtf' ]]
+        [[ "$ap_mime" =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
         ;;
     upload)
         docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
@@ -315,9 +356,7 @@ OPTIONS:
              exact name of an executable, it will be used, even if it is
              not listed in the configuration file.
  -c          Use the specified configuration file instead of the default
-             one located at $XDG_CONFIG_HOME/anypaste.conf. You can use
-             /dev/null as a config file to have nothing at all, but you
-             will need to set config variables in the shell manually
+             one located at $XDG_CONFIG_HOME/anypaste.conf
  -h, --help  Display this help text.
 
 Plugins may support additional options not listed here.
@@ -382,17 +421,17 @@ then
     cat > "$ap_cfg" << 'CFG'
 ap_plugins=(
 # Videos/Gifs
-'anypaste-streamable' 'anypaste-gfycat'
+'anypaste_streamable' 'anypaste_gfycat'
 # Images
-'anypaste-vgyme' 'anypaste-tinyimg'
+'anypaste_vgyme' 'anypaste_tinyimg'
 # Audio
-'anypaste-instaudio'
+'anypaste_instaudio'
 # Text
-'anypaste-hastebin' 'anypaste-ixio' 'anypaste-sprunge'
+'anypaste_hastebin' 'anypaste_ixio' 'anypaste_sprunge'
 # Documents
-'anypaste-docdroid'
+'anypaste_docdroid'
 # Any file
-'anypaste-fileio'
+'anypaste_fileio' 'anypaste_jirafeau'
 )
 CFG
 fi
@@ -417,8 +456,8 @@ function check_eligibility {
     done
     if [[ -n "${missing_configs[@]}" ]]
     then
-        echo "Missing required configuration parameters for $ap_plugin: ${missing_configs[@]}"
-        echo 'You can set them in your configuration file.'
+        echo "Plugin $ap_plugin is compatible, but missing config parameters: ${missing_configs[@]}"
+        echo "You can set them in $ap_cfg"
         return 1
     fi
 }
@@ -487,6 +526,7 @@ function ap_rand_tmp {
 }
 ap_found_stdin='false'
 ap_exit_code=0
+# NO FILES SPECIFIED
 if [[ $# -eq 0 ]]
 then
     if [[ -t 0 ]]
@@ -499,9 +539,12 @@ then
 else
     ap_args=("$@")
 fi
+# LOOP THROUGH FILES
 for ap_user_path in "${ap_args[@]}"
 do
     # HANDLE WEIRD FILES
+
+    # STDIN
     if [[ "$ap_user_path" == '-' ]]
     then
         if $ap_found_stdin
@@ -520,19 +563,22 @@ do
         ap_path=$(ap_rand_tmp)
         cat > "$ap_path"
         ap_found_stdin='true'
+    # NOT READABLE
     elif [[ ! -r "$ap_user_path" ]]
     then
         echo "$ap_user_path is not readable!"
         echo 'Make sure it exists and you have proper permissions for it.'
         ap_exit_code=1
         continue
+    # IS A DIRECTORY
     elif [[ -d "$ap_user_path" ]]
     then
         echo "$ap_user_path is a directory, creating tarball..."
         ap_path="$(ap_rand_tmp).tar.gz"
         tar czf "$ap_path" -C "$ap_user_path" .
         ap_tmp_files+=("$ap_path")
-    else    
+    # NOTHING SPECIAL
+    else
         ap_path=$(readlink -f "$ap_user_path")
     fi
     ap_file_ib=$(file -ib "$ap_path")
