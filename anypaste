@@ -184,6 +184,26 @@ function anypaste_streamable {
     esac
 }
 
+function anypaste_sendvid {
+    case $1 in
+    check_eligibility)
+        [[ "$ap_mime" =~ "video/" ]] && check_size 1000000000
+        ;;
+    upload)
+        # Sendvid won't upload videos with certain file extensions, but will still encode them
+        # and function properly if uploaded as a .mp4
+        # Maybe time for them to switch to mime type checking?
+        sendvid_json=$(curl -#fF "video=@$ap_path;filename=$ap_path.mp4" http://sendvid.com/api/v1/videos)
+        sendvid_pub=$(echo "$sendvid_json" | grep -o '\w*' | awk 'NR==5')
+        sendvid_priv=$(echo "$sendvid_json" | grep -o '[a-z0-9-]*' | tail -1)
+        echo ''
+        echo "Link: http://sendvid.com/$sendvid_pub"
+        echo "Delete/Edit: http://sendvid.com/$sendvid_pub?secret=$sendvid_priv"
+        echo ''
+        ;;
+    esac
+}
+
 function anypaste_gfycat {
     case $1 in
         check_eligibility)
@@ -421,7 +441,7 @@ then
     cat > "$ap_cfg" << 'CFG'
 ap_plugins=(
 # Videos/Gifs
-'anypaste_streamable' 'anypaste_gfycat'
+'anypaste_streamable' 'anypaste_sendvid' 'anypaste_gfycat'
 # Images
 'anypaste_vgyme' 'anypaste_tinyimg'
 # Audio
