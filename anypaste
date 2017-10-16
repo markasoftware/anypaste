@@ -2,6 +2,7 @@
 
 # This is anypaste. Authored by Markasoftware (see markasoftware.com)
 # This software is released under the GPLv3, see gnu.org
+# Homepage at anypaste.xyz
 
 # COMMON PLUGIN FUNCTIONS
 
@@ -173,9 +174,6 @@ function anypaste_streamable {
         ;;
     upload)
         streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
-        # oof owie ouch
-        # 4 processes, two `revs`, and one simple string manipulation. Watch the latest episode
-        # of "Bash Hackers" on Cartoon Network at 5:30 central.
         streamable_shortcode=$(echo "$streamable_json" | grep -o '\w*' | tail -n 1)
         echo ''
         echo "Link: https://streamable.com/$streamable_shortcode"
@@ -435,10 +433,13 @@ fi
 
 if [[ ! -e "$ap_cfg" ]]
 then
-    echo "Could not find configuration file, creating one at $ap_cfg."
-    echo 'The default configuration is fine unless you want to enable extra plugins.'
-    # todo: possibly use base64 instead
+    echo "Could not find configuration file, creating one at $ap_cfg"
+    echo "Also creating a plugin directory at $HOME/.anypaste-plugins"
+    mkdir -p "$HOME/.anypaste-plugins"
     cat > "$ap_cfg" << 'CFG'
+# List of plugins
+# If there are multiple compatible plugins, precedence is determined
+# by which one is listed first in this array
 ap_plugins=(
 # Videos/Gifs
 'anypaste_streamable' 'anypaste_sendvid' 'anypaste_gfycat'
@@ -452,9 +453,28 @@ ap_plugins=(
 'anypaste_docdroid'
 # Any file
 'anypaste_fileio' 'anypaste_jirafeau'
+
+# Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
+# Otherwise plugins won't be able to see your variables.
+
+# SETTINGS FOR DEFAULT PLUGINS
+# remember to uncomment them for them to work
+
+# Set both of these to a real account to enable the streamable plugin
+# export streamable_email=mark@example.com
+# export streamable_password=hunter2
+
+# Create a docdroid.net account, go to settings, and create an API access token
+# export docdroid_access_token=928doebknb80fd38rduroenaudhoenkb283d8pf7230upf8rekb92
+
+# Set this to anything to enable duplicate-checking on Gfycat. See anypaste documentation
+# for more details.
+# export gfycat_duplicates="yes"
 )
 CFG
 fi
+
+export PATH="$PATH:$HOME/.anypaste-plugins"
 
 # LOAD AND CHECK CONFIGURATION
 
@@ -594,15 +614,15 @@ do
     elif [[ -d "$ap_user_path" ]]
     then
         echo "$ap_user_path is a directory, creating tarball..."
-        ap_path="$(ap_rand_tmp).tar.gz"
+        export ap_path="$(ap_rand_tmp).tar.gz"
         tar czf "$ap_path" -C "$ap_user_path" .
         ap_tmp_files+=("$ap_path")
     # NOTHING SPECIAL
     else
         ap_path=$(readlink -f "$ap_user_path")
     fi
-    ap_file_ib=$(file -ib "$ap_path")
-    ap_mime=${ap_file_ib%%;*}
+    export ap_file_ib=$(file -ib "$ap_path")
+    export ap_mime=${ap_file_ib%%;*}
     upload_loop || ap_exit_code=1
 done
 echo 'All files processed. Have a nice day!'
