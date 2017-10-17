@@ -25,7 +25,7 @@ function curl_file_upload {
 
 # PLUGINS
 
-function anypaste_sprunge {
+function sprunge {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -39,7 +39,7 @@ function anypaste_sprunge {
     esac
 }
 
-function anypaste_ixio {
+function ixio {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -53,7 +53,7 @@ function anypaste_ixio {
     esac
 }
 
-function anypaste_hastebin {
+function hastebin {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "text/" ]]
@@ -70,7 +70,7 @@ function anypaste_hastebin {
     esac
 }
 
-function anypaste_fileio {
+function fileio {
     case $1 in
     check_eligibility)
         check_size 5000000000
@@ -86,7 +86,7 @@ function anypaste_fileio {
     esac
 }
 
-function anypaste_jirafeau {
+function jirafeau {
     case $1 in
     check_eligibility)
         check_size 200000000
@@ -109,7 +109,7 @@ function anypaste_jirafeau {
     esac
 }
 
-function anypaste_vgyme {
+function vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
@@ -129,7 +129,7 @@ function anypaste_vgyme {
     esac
 }
 
-function anypaste_tinyimg {
+function tinyimg {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ "image/" ]] && check_size 10000000
@@ -144,7 +144,7 @@ function anypaste_tinyimg {
     esac
 }
 
-function anypaste_instaudio {
+function instaudio {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
@@ -163,7 +163,7 @@ function anypaste_instaudio {
     esac
 }
 
-function anypaste_streamable {
+function streamable {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ 'video/'|'image/gif' ]] && check_size 10000000000
@@ -182,7 +182,7 @@ function anypaste_streamable {
     esac
 }
 
-function anypaste_sendvid {
+function sendvid {
     case $1 in
     check_eligibility)
         [[ "$ap_mime" =~ "video/" ]] && check_size 1000000000
@@ -202,7 +202,7 @@ function anypaste_sendvid {
     esac
 }
 
-function anypaste_gfycat {
+function gfycat {
     case $1 in
         check_eligibility)
             [[ "$ap_mime" =~ "video/"|"image/gif" ]]
@@ -260,7 +260,7 @@ function anypaste_gfycat {
     esac
 }
 
-function anypaste_docdroid {
+function docdroid {
     case $1 in
     get_required_config)
         echo 'docdroid_access_token'
@@ -434,25 +434,24 @@ fi
 if [[ ! -e "$ap_cfg" ]]
 then
     echo "Could not find configuration file, creating one at $ap_cfg"
-    echo "Also creating a plugin directory at $HOME/.anypaste-plugins"
-    mkdir -p "$HOME/.anypaste-plugins"
     cat > "$ap_cfg" << 'CFG'
 # List of plugins
 # If there are multiple compatible plugins, precedence is determined
 # by which one is listed first in this array
 ap_plugins=(
 # Videos/Gifs
-'anypaste_streamable' 'anypaste_sendvid' 'anypaste_gfycat'
+'streamable' 'sendvid' 'gfycat'
 # Images
-'anypaste_vgyme' 'anypaste_tinyimg'
+'vgyme' 'tinyimg'
 # Audio
-'anypaste_instaudio'
+'instaudio'
 # Text
-'anypaste_hastebin' 'anypaste_ixio' 'anypaste_sprunge'
+'hastebin' 'ixio' 'sprunge'
 # Documents
-'anypaste_docdroid'
+'docdroid'
 # Any file
-'anypaste_fileio' 'anypaste_jirafeau'
+'fileio' 'jirafeau'
+)
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
 # Otherwise plugins won't be able to see your variables.
@@ -470,11 +469,10 @@ ap_plugins=(
 # Set this to anything to enable duplicate-checking on Gfycat. See anypaste documentation
 # for more details.
 # export gfycat_duplicates="yes"
-)
 CFG
 fi
 
-export PATH="$PATH:$HOME/.anypaste-plugins"
+export PATH="$HOME/.anypaste-plugins:$PATH"
 
 # LOAD AND CHECK CONFIGURATION
 
