@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This is anypaste. Authored by Markasoftware (see markasoftware.com)
 # This software is released under the GPLv3, see gnu.org
@@ -10,7 +10,7 @@
 function check_size {
     if ! [[ $(wc -c < "$ap_path") -lt $1 ]]
     then
-        echo "WARNING: File is of compatible type for plugin $ap_plugin, but is above size limit of $1 bytes"
+        echo "WARNING: File is of compatible type for plugin '$ap_plugin', but is above size limit of $1 bytes"
         return 1
     fi
 }
@@ -28,7 +28,7 @@ function curl_file_upload {
 function sprunge {
     case $1 in
     check_eligibility)
-        [[ "$ap_mime" =~ "text/" ]]
+        [[ $ap_mime == text/* ]]
         ;;
     upload)
         sprunge_link=$(curl_form_upload 'sprunge' 'sprunge.us') || return 1
@@ -42,7 +42,7 @@ function sprunge {
 function ixio {
     case $1 in
     check_eligibility)
-        [[ "$ap_mime" =~ "text/" ]]
+        [[ $ap_mime == text/* ]]
         ;;
     upload)
         ixio_link=$(curl_form_upload 'f:1' ix.io)
@@ -56,7 +56,7 @@ function ixio {
 function hastebin {
     case $1 in
     check_eligibility)
-        [[ "$ap_mime" =~ "text/" ]]
+        [[ $ap_mime == text/* ]]
         ;;
     upload)
         hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
@@ -113,7 +113,7 @@ function vgyme {
     case $1 in
         check_eligibility)
             # This is literally the worst possible way to design how the quotes should be used in a regex
-            [[ "$ap_mime" =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
+            [[ $ap_mime =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
             ;;
         upload)
             vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
@@ -132,7 +132,7 @@ function vgyme {
 function tinyimg {
     case $1 in
         check_eligibility)
-            [[ "$ap_mime" =~ "image/" ]] && check_size 10000000
+            [[ $ap_mime == image/* ]] && check_size 10000000
             ;;
         upload)
             tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
@@ -147,7 +147,7 @@ function tinyimg {
 function instaudio {
     case $1 in
         check_eligibility)
-            [[ "$ap_mime" =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
+            [[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
             ;;
         upload)
             inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
@@ -166,7 +166,7 @@ function instaudio {
 function streamable {
     case $1 in
     check_eligibility)
-        [[ "$ap_mime" =~ 'video/'|'image/gif' ]] && check_size 10000000000
+        [[ $ap_mime =~ 'video/'|'image/gif' ]] && check_size 10000000000
         ;;
     get_required_config)
         echo 'streamable_email'
@@ -185,7 +185,7 @@ function streamable {
 function sendvid {
     case $1 in
     check_eligibility)
-        [[ "$ap_mime" =~ "video/" ]] && check_size 1000000000
+        [[ $ap_mime == video/* ]] && check_size 1000000000
         ;;
     upload)
         # Sendvid won't upload videos with certain file extensions, but will still encode them
@@ -205,7 +205,7 @@ function sendvid {
 function gfycat {
     case $1 in
         check_eligibility)
-            [[ "$ap_mime" =~ "video/"|"image/gif" ]]
+            [[ $ap_mime =~ "video/"|"image/gif" ]]
             ;;
         upload)
             # this is one of the more complex ones
@@ -266,7 +266,7 @@ function docdroid {
         echo 'docdroid_access_token'
         ;;
     check_eligibility)
-        [[ "$ap_mime" =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
+        [[ $ap_mime =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
         ;;
     upload)
         docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
@@ -317,14 +317,18 @@ function search_compatible_plugins {
     case ${#ap_matched_plugins[@]} in
     0)
         echo "No plugins matched '$1'."
-        echo "Available plugins are: ${ap_compatible_plugins[@]}"
+        echo -n 'Available plugins are:'
+        printf " '%s'" "${ap_compatible_plugins[@]}"
+        echo ''
         return 1
         ;;
     1)
         ap_plugin="$ap_matched_plugins"
         ;;
     *)
-        echo "Multiple plugins matched '$1': ${ap_matched_plugins[@]}"
+        echo -n "Multiple plugins matched '$1':"
+        printf " '%s'" "${ap_matched_plugins[@]}"
+        echo ''
         echo 'Refine your search and try again.'
         return 1
         ;;
@@ -339,7 +343,9 @@ function ap_i_select_plugin {
         echo "Only one compatible plugin was found: $ap_compatible_plugins"
         ap_plugin="$ap_compatible_plugins"
     fi
-    echo "The following plugins were found: ${ap_compatible_plugins[@]}"
+    echo -n 'The following plugins were found:'
+    printf " '%s'" "${ap_compatible_plugins[@]}"
+    echo ''
     # keep asking for search terms until we find something
     while true
     do
@@ -380,7 +386,7 @@ OPTIONS:
 Plugins may support additional options not listed here.
 '
 
-if [[ "$@" =~ '--help' ]]
+if [[ "$*" =~ '--help' ]]
 then
     echo "$ap_help"
     ap_exit
@@ -492,9 +498,11 @@ function check_eligibility {
             missing_configs+=("$cur_req_config")
         fi
     done
-    if [[ -n "${missing_configs[@]}" ]]
+    if [[ -n "$missing_configs" ]]
     then
-        echo "Plugin $ap_plugin is compatible, but missing config parameters: ${missing_configs[@]}"
+        echo -n "Plugin '$ap_plugin' is compatible, but missing config parameters:"
+        printf " '%s'" "${missing_configs[@]}"
+        echo ''
         echo "You can set them in $ap_cfg"
         return 1
     fi
@@ -503,7 +511,7 @@ function check_eligibility {
 # UPLOAD FUNCTION
 
 function upload_plugin {
-    echo "Attempting to upload with plugin $ap_plugin"
+    echo "Attempting to upload with plugin '$ap_plugin'"
     if $ap_plugin upload
     then
         echo 'Upload complete.'
@@ -537,7 +545,7 @@ function upload_loop {
         while true
         do
             ap_i_select_plugin || return 1
-            ap_i_yn "Attempt to upload with plugin $ap_plugin?" || continue
+            ap_i_yn "Attempt to upload with plugin '$ap_plugin'?" || continue
             upload_plugin && return ||
                 ap_compatible_plugins=("${ap_compatible_plugins[@]/$ap_plugin}")
         done
@@ -560,7 +568,8 @@ function upload_loop {
 }
 
 function ap_rand_tmp {
-    echo "/tmp/anypaste-$(tr -dc a-zA-Z0-9 < /dev/urandom | head -c 20)"
+    ap_rand_str=$(head -c 20 /dev/urandom | base64 | tr -dc 0-9A-Za-z)
+    echo "/tmp/anypaste-$ap_rand_str"
 }
 ap_found_stdin='false'
 ap_exit_code=0
