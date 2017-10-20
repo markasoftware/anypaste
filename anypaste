@@ -371,11 +371,12 @@ OPTIONS:
              Combining this with options intended for non-interactive
              use (e.g, -p) has undefined behavior. If you are reading
              your file from stdin, -i might not work properly.
- -p          Force using the given plugin, even if it is not listed in
-             the configuration file. Will not fall back to other plugins
-             or check plugin compatibility.
+ -p          Specify a plugin instead of automatic selection. Uses fuzzy
+             matching (e.g, `gfy` search will match `gfycat` plugin).
+             Only searches compatible plugins by default.
  -f          Do not check plugin compatibility. Without -p, it uses the
-             first listed plugin in the config file.
+             first listed plugin in the config file. Primary meant for
+             use with -p
  -x          If plugin specified using -p or interactive mode is the
              exact name of an executable, it will be used, even if it is
              not listed in the configuration file.
