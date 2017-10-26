@@ -627,7 +627,12 @@ do
         ap_tmp_files+=("$ap_path")
     # NOTHING SPECIAL
     else
-        ap_path=$(readlink -f "$ap_user_path")
+        ap_path=$(
+            ap_dirname=$(dirname "$ap_user_path")
+            ap_basename=$(basename "$ap_user_path")
+            cd "$ap_dirname"
+            echo "$PWD/$ap_basename"
+        )
     fi
     export ap_file_ib=$(file -ib "$ap_path")
     export ap_mime=${ap_file_ib%%;*}
