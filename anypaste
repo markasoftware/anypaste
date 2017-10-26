@@ -634,7 +634,7 @@ do
             echo "$PWD/$ap_basename"
         )
     fi
-    export ap_file_ib=$(file -ib "$ap_path")
+    export ap_file_ib=$(file --mime-type --brief "$ap_path")
     export ap_mime=${ap_file_ib%%;*}
     upload_loop || ap_exit_code=1
 done
