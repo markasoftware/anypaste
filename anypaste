@@ -447,9 +447,9 @@ then
 # by which one is listed first in this array
 ap_plugins=(
 # Videos/Gifs
-'streamable' 'sendvid' 'gfycat'
+'sendvid' 'streamable' 'gfycat'
 # Images
-'vgyme' 'tinyimg'
+'tinyimg' 'vgyme'
 # Audio
 'instaudio'
 # Text
@@ -457,7 +457,7 @@ ap_plugins=(
 # Documents
 'docdroid'
 # Any file
-'fileio' 'jirafeau'
+'jirafeau' 'fileio'
 )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
