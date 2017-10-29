@@ -6,7 +6,6 @@
 
 # COMMON PLUGIN FUNCTIONS
 
-# Args: File to check, max size, plugin name
 function check_size {
     if ! [[ $(wc -c < "$ap_path") -lt $1 ]]
     then
@@ -608,7 +607,7 @@ do
             ap_exit_code=1
             continue
         fi
-        ap_path=$(ap_rand_tmp)
+        export ap_path=$(ap_rand_tmp)
         cat > "$ap_path"
         ap_found_stdin='true'
     # NOT READABLE
@@ -627,7 +626,7 @@ do
         ap_tmp_files+=("$ap_path")
     # NOTHING SPECIAL
     else
-        ap_path=$(
+        export ap_path=$(
             ap_dirname=$(dirname "$ap_user_path")
             ap_basename=$(basename "$ap_user_path")
             cd "$ap_dirname"
