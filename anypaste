@@ -370,6 +370,7 @@ OPTIONS:
              Combining this with options intended for non-interactive
              use (e.g, -p) has undefined behavior. If you are reading
              your file from stdin, -i might not work properly.
+ -l          List available plugins
  -p          Specify a plugin instead of automatic selection. Uses fuzzy
              matching (e.g, `gfy` search will match `gfycat` plugin).
              Only searches compatible plugins by default.
@@ -389,6 +390,35 @@ Plugins may support additional options not listed here.
 if [[ "$*" =~ '--help' ]]
 then
     echo "$ap_help"
+    ap_exit
+fi
+
+# List Plugins
+
+ap_list="
+\033[33;1mVideos/Gifs\033[m
+    \033[36msendvid
+    streamable
+    gfycat\033[m
+\033[33;1mImages\033[m
+    \033[36mtinyimg
+    vgyme\033[m
+\033[33;1mAudio\033[m
+    \033[36mminstaudio\033[m
+\033[33;1mText\033[m
+    \033[36mhastebin
+    ixio
+    sprunge\033[m
+\033[33;1mDocuments\033[m
+    \033[36mdocdroid\033[m
+\033[33;1mAny file\033[m
+    \033[36mjirafeau
+    fileio\033[m
+"
+
+if [[ "$*" =~ '-l' ]]
+then
+    echo -e "$ap_list"
     ap_exit
 fi
 
