@@ -392,6 +392,12 @@ then
     ap_exit
 fi
 
+if [ "$*" = "--version" ] || [ "$*" = "-v" ]
+then
+    echo "anypaste 1.0.1"
+    ap_exit
+fi
+
 # PARSE OPTIONS
 
 ap_i='false'
