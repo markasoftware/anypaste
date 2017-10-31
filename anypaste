@@ -4,6 +4,9 @@
 # This software is released under the GPLv3, see gnu.org
 # Homepage at anypaste.xyz
 
+# Version:
+ap_version='Anypaste 1.0.2-dev'
+
 # COMMON PLUGIN FUNCTIONS
 
 function check_size {
@@ -392,9 +395,9 @@ then
     ap_exit
 fi
 
-if [ "$*" = "--version" ] || [ "$*" = "-v" ]
+if [[ "$*" =~ '--version' ]]
 then
-    echo "anypaste 1.0.1"
+    echo "$ap_version"
     ap_exit
 fi
 
@@ -406,7 +409,7 @@ ap_x='false'
 ap_p=""
 ap_cfg=""
 
-while getopts 'xfhip:c:' ap_opt
+while getopts 'vxfhip:c:' ap_opt
 do
     case $ap_opt in
     h)
@@ -427,6 +430,10 @@ do
         ;;
     c)
         ap_cfg="$OPTARG"
+        ;;
+    v)
+        echo "$ap_version"
+        ap_exit
         ;;
     esac
 done
