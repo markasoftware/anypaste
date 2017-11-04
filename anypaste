@@ -219,7 +219,17 @@ function gfycat {
                     return 1;
                 }
             else
-                gfy_init_json=$(curl -sfXPOST -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
+                gfy_auth_header=""
+                if [[ -n "$gfycat_client_id" ]] && [[ -n "$gfycat_client_secret" ]]
+                then
+                    token_result=$(curl -H 'Content-Type: application/json' -d """{ 'client_id': '"${gfycat_client_id}"', 'client_secret': '"${gfycat_client_secret}"', 'grant_type': 'client_credentials'}""" https://api.gfycat.com/v1/oauth/token) || {
+                        echo 'Failed to obtain authorization token. Check your gfycat_client_id and gfycat_client_secret values'
+                        return 1;
+                    }
+                    gfy_auth_token=$(echo "$token_result" | sed -n 's/.*"access_token":"\([^}]*\)"}/\1/p')
+                    gfy_auth_header="-H 'Authorization: Bearer ${gfy_auth_token}'"
+                fi
+                gfy_init_json=$(curl -sfXPOST ${gfy_auth_header} -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
                     echo 'Getting gfycat key did not return HTTP 200!'
                     return 1;
                 }
@@ -229,7 +239,8 @@ function gfycat {
             # since i don't know how to set it using curl options, I'm
             # just using a symbolic link with the correct name.
             ln -s "$ap_path" "/tmp/$gfy_name"
-            curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
+            curl "${gfy_auth_header}" -XPUT -#fT "/tmp/$gfy_name" 'https://filedrop.gfycat.com' || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+            # curl_file_upload ${gfy_auth_header} 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
             rm -f "/tmp/$gfy_name"
             if [[ -n "$gfycat_duplicates" ]]
             then
@@ -485,6 +496,9 @@ ap_plugins=(
 # Create a docdroid.net account, go to settings, and create an API access token
 # export docdroid_access_token=928doebknb80fd38rduroenaudhoenkb283d8pf7230upf8rekb92
 
+# Set both of these to enable Gfycat uploading using your account
+gfycat_client_id=1_S-EAsd
+gfycat_client_secret=2-A4fVwe3a2937392051_hSKeNBCikrVGeviC9F0ObG2FlfkxMLXSRpjLslUQ7o
 # Set this to anything to enable duplicate-checking on Gfycat. See anypaste documentation
 # for more details.
 # export gfycat_duplicates="yes"
