@@ -80,7 +80,7 @@ function fileio {
     upload)
         fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
         fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
-        echo 'Reminder: file.io uploads are deleted after 14 days!'
+        echo 'Reminder: file.io uploads are deleted after being download, or 14 days, whichever comes first!'
         echo ''
         echo "Direct Link: $fileio_link"
         echo ''
@@ -88,25 +88,18 @@ function fileio {
     esac
 }
 
-function jirafeau {
+function transfersh {
     case $1 in
     check_eligibility)
-        check_size 200000000
+        check_size 10000000000
         ;;
     upload)
-        # It took a long time to figure out that it required http 1.0
-        # For future reference, apparently http 417 means that, i guess?
-        jf_res=$(curl --http1.0 -#fF 'time=month' -F "file=@$ap_path;type=$ap_mime" 'https://jirafeau.net/script.php') || return 1
-        jf_pub=$(echo "$jf_res" | head -1)
-        jf_priv=$(echo "$jf_res" | tail -1)
-        jf_base="https://jirafeau.net/f.php?h=$jf_pub"
-        echo 'Reminder: jirafeau.net uploads are deleted after about a month!'
+        # TODO: if we ever add support for custom parameters for plugins, then have custom filename here!
+        transfersh_link=$(curl_file_upload 'PUT' "$ap_path" 'https://transfer.sh/anypaste-upload')
+        echo 'Reminder: transfer.sh uploads are deleted after 14 days!'
         echo ''
-        echo "Link: $jf_base"
-        echo "Direct Link (View): $jf_base&p=1"
-        echo "Direct Link (Download): $jf_base&d=1"
-        echo "Delete: $jf_base&d=$jf_priv"
-        echo '' 
+        echo "Direct Link: $transfersh_link"
+        echo ''
         ;;
     esac
 }
@@ -469,7 +462,7 @@ ap_plugins=(
 # Documents
 'docdroid'
 # Any file
-'jirafeau' 'fileio'
+'transfersh' 'fileio'
 )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -502,6 +495,7 @@ source "$ap_cfg"
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
 function check_eligibility {
+    command -v "$ap_plugin" > /dev/null || { echo "WARNING: Plugin $ap_plugin could not be found! You may need to check your config file." && return 1; }
     $ap_plugin check_eligibility || return 1
     missing_configs=()
     for cur_req_config in $($ap_plugin get_required_config)
