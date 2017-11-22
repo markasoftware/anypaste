@@ -5,7 +5,9 @@
 # Homepage at anypaste.xyz
 
 # Version:
-ap_version='Anypaste 1.0.2-dev'
+ap_version='1.0.3'
+# Are we on mac?
+[[ $(uname) == Darwin ]] && ap_mac='true' || ap_mac='false'
 
 # COMMON PLUGIN FUNCTIONS
 
@@ -377,6 +379,9 @@ OPTIONS:
              not listed in the configuration file.
  -c          Use the specified configuration file instead of the default
              one located at $XDG_CONFIG_HOME/anypaste.conf
+ -C          Create a default configuration file. This is how you should
+             initialize a config file if you want to use one.
+ -v          Display Anypaste version
  -h, --help  Display this help text.
 
 Plugins may support additional options not listed here.
@@ -390,7 +395,7 @@ fi
 
 if [[ "$*" =~ '--version' ]]
 then
-    echo "$ap_version"
+    echo "Anypaste $ap_version"
     ap_exit
 fi
 
@@ -399,10 +404,11 @@ fi
 ap_i='false'
 ap_f='false'
 ap_x='false'
+ap_C='false'
 ap_p=""
 ap_cfg=""
 
-while getopts 'vxfhip:c:' ap_opt
+while getopts 'Cvxfhip:c:' ap_opt
 do
     case $ap_opt in
     h)
@@ -424,8 +430,11 @@ do
     c)
         ap_cfg="$OPTARG"
         ;;
+    C)
+        ap_C='true';
+        ;;
     v)
-        echo "$ap_version"
+        echo "Anypaste $ap_version"
         ap_exit
         ;;
     esac
@@ -440,30 +449,30 @@ shift $[OPTIND - 1]
 
 if [[ -z "$ap_cfg" ]]
 then
-    [[ -n "$XDG_CONFIG_HOME" ]] && ap_cfg="$XDG_CONFIG_HOME/anypaste.conf" || ap_cfg="$HOME/.config/anypaste.conf"
+    if $ap_mac
+    then
+        # fuck mac users, they deserve random config files in their home directory because there's nowhere defined to put them
+        ap_cfg="$HOME/.anypaste.conf"
+    else
+        [[ -n "$XDG_CONFIG_HOME" ]] && ap_cfg="$XDG_CONFIG_HOME/anypaste.conf" || ap_cfg="$HOME/.config/anypaste.conf"
+    fi
 fi
 
-if [[ ! -e "$ap_cfg" ]]
+if $ap_C
 then
-    echo "Could not find configuration file, creating one at $ap_cfg"
-    cat > "$ap_cfg" << 'CFG'
+    cat > "$ap_cfg" << CFG
 # List of plugins
 # If there are multiple compatible plugins, precedence is determined
 # by which one is listed first in this array
-ap_plugins=(
-# Videos/Gifs
-'sendvid' 'streamable' 'gfycat'
-# Images
-'tinyimg' 'vgyme'
-# Audio
-'instaudio'
-# Text
-'hastebin' 'ixio' 'sprunge'
-# Documents
-'docdroid'
-# Any file
-'transfersh' 'fileio'
-)
+# You'll need to uncomment (remove # at beginning of line) first
+# ap_plugins=(
+# 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
+# 'tinyimg' 'vgyme' # Images
+# 'instaudio' # Audio
+# 'hastebin' 'ixio' 'sprunge' # Text
+# 'docdroid' # Documents
+# 'transfersh' 'fileio' # Generic
+# )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
 # Otherwise plugins won't be able to see your variables.
@@ -482,13 +491,22 @@ ap_plugins=(
 # for more details.
 # export gfycat_duplicates="yes"
 CFG
+    echo "Created configuration file at $ap_cfg"
+    echo 'It does nothing by default, edit it to make it cool!'
+    ap_exit
 fi
 
 export PATH="$HOME/.anypaste-plugins:$PATH"
 
 # LOAD AND CHECK CONFIGURATION
 
-source "$ap_cfg"
+# default plugins
+ap_plugins=(
+    'sendvid' 'streamable' 'gfycat' 'tinyimg' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'sprunge' 'docdroid' 'transfersh' 'fileio'
+)
+
+# this could fail if no config file
+source "$ap_cfg" 2> /dev/null
 
 [[ ${#ap_plugins[@]} -eq 0 ]] && echo 'No plugins listed in config!' && ap_exit 1
 
