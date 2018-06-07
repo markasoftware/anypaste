@@ -29,6 +29,14 @@ function curl_file_upload {
 	curl -X$1 -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
+# string json | string key -> string value
+# make sure no special chars in key, and key can't appear in json apart from as a key
+# don't try this at home kids
+# args: input json, key to search for
+function json_parse {
+	echo "$1" | sed -E "s/.*\"$2\":\"?//;s/\"?(,|}).*//"
+}
+
 # PLUGINS
 
 function sprunge {
@@ -66,7 +74,7 @@ function hastebin {
 		;;
 	upload)
 		hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
-		hastebin_id=$(echo "${hastebin_json:8}" | grep -o '[a-z]*')
+		hastebin_id=$(json_parse "$hastebin_json" 'key')
 		echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!' >&2
 		echo '' >&2
 		echo "Link: https://hastebin.com/$hastebin_id"
@@ -82,7 +90,7 @@ function fileio {
 		;;
 	upload)
 		fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
-		fileio_link=$(echo "$fileio_json" | grep -oE 'https://file.io/[a-zA-Z0-9]+')
+		fileio_link=$(json_parse "$fileio_json" 'link')
 		echo 'Reminder: file.io uploads are deleted after being download, or 14 days, whichever comes first!' >&2
 		echo '' >&2
 		echo "Direct Link: $fileio_link"
@@ -116,9 +124,9 @@ function vgyme {
 			;;
 		upload)
 			vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
-			vgyme_link=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+' | head -1)
-			vgyme_direct=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/[a-zA-Z0-9]+\.[a-zA-Z]+')
-			vgyme_delete=$(echo "$vgyme_json" | grep -oE 'https://vgy\.me/delete/[a-zA-Z0-9]+')
+			vgyme_link=$(json_parse "$vgyme_json" 'url')
+			vgyme_direct=$(json_parse "$vgyme_json" 'image')
+			vgyme_delete=$(json_parse "$vgyme_json" 'delete')
 			echo '' >&2
 			echo "Link: $vgyme_link"
 			echo "Direct Link: $vgyme_direct"
@@ -135,11 +143,32 @@ function tinyimg {
 			;;
 		upload)
 			tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
-			tinyimg_filename=$(echo "$tinyimg_json" | grep -o '[a-zA-Z0-9.]*' | tail -1)
+			tinyimg_filename=$(json_parse "$tinyimg_json" 'uploadName')
 			echo '' >&2
 			echo "Direct Link: https://tinyimg.io/i/$tinyimg_filename"
 			echo ''
 			;;
+	esac
+}
+
+function imgur {
+	case $1 in
+		check_eligibility)
+			[[ $ap_mime == image/* ]] && check_size 100000000
+			;;
+		upload)
+			imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
+				-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
+				'https://api.imgur.com/3/image') || return 1
+			imgur_id=$(json_parse "$imgur_json" 'id')
+			imgur_link=$(json_parse "$imgur_json" 'link')
+			imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
+			echo '' >&2
+			echo "Link: https://imgur.com/$imgur_id"
+			echo "Direct Link: $imgur_link"
+			echo "Edit: https://imgur.com/edit?deletehash=$imgur_deletehash"
+			echo "Delete: https://imgur.com/delete/$imgur_deletehash"
+			echo ''
 	esac
 }
 
@@ -150,12 +179,41 @@ function instaudio {
 			;;
 		upload)
 			inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
-			inst_redirect=$(echo "$inst_json" | grep -oE '/[a-zA-Z0-9]+')
+			inst_redirect=$(json_parse "$inst_json" 'redirect_url')
 			# this is POSIX compliant, I guess
 			ap_ext="${ap_path##*.}"
 			echo '' >&2
 			echo "Link: https://instaud.io$inst_redirect"
 			echo "Direct Link: https://instaud.io/_$inst_redirect.$ap_ext"
+			echo ''
+			;;
+	esac
+}
+
+function clyp {
+	case $1 in
+		check_eligibility)
+			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] || return 1
+			[[ -n $clyp_email ]] && check_size 20000000 || check_size 5000000
+			;;
+		upload)
+			if [[ -n $clyp_email ]]
+			then
+				clyp_login_json=$(curl -fH 'Authorization: Basic MjkzMTEOg==' \
+					-d "username=$clyp_email&password=$clyp_password&grant_type=password" \
+					https://api.clyp.it/oauth2/token) || return 1
+				clyp_token=$(json_parse "$clyp_login_json" 'access_token')
+				clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H "Authorization: Bearer $clyp_token" \
+					-H 'X-Client-Type: WebAlfa' https://upload.clyp.it/upload) || return 1
+			else
+				clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
+					https://upload.clyp.it/upload) || return 1
+			fi
+			clyp_link=$(json_parse "$clyp_json" 'Url')
+			clyp_mp3_direct_link=$(json_parse "$clyp_json" 'SecureMp3Url')
+			echo '' >&2
+			echo "Link: $clyp_link"
+			echo "Direct Link: $clyp_mp3_direct_link"
 			echo ''
 			;;
 	esac
@@ -172,6 +230,7 @@ function streamable {
 		;;
 	upload)
 		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
+		echo "$streamable_json"
 		streamable_shortcode=$(echo "$streamable_json" | grep -o '\w*' | tail -n 1)
 		echo '' >&2
 		echo "Link: https://streamable.com/$streamable_shortcode"
@@ -190,6 +249,7 @@ function sendvid {
 		# and function properly if uploaded as a .mp4
 		# Maybe time for them to switch to mime type checking?
 		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" http://sendvid.com/api/v1/videos) || return 1
+		echo "$sendvid_json"
 		sendvid_pub=$(echo "$sendvid_json" | grep -o '\w*' | awk 'NR==5')
 		sendvid_priv=$(echo "$sendvid_json" | grep -o '[a-z0-9-]*' | tail -1)
 		echo '' >&2
@@ -219,7 +279,8 @@ function gfycat {
 					echo 'Getting gfycat key did not return HTTP 200!' >&2
 					return 1;
 				}
-			fi			
+			fi
+			echo "$gfy_init_json"
 			gfy_name=$(echo "$gfy_init_json" | grep -o '[a-zA-Z]*' | awk 'NR==4')
 			# the file being uploaded must have the same name as the key
 			# since i don't know how to set it using curl options, I'm
@@ -246,6 +307,7 @@ function gfycat {
 					}
 					[[ "$gfy_status" =~ 'complete' ]] && break
 				done
+				echo "$gfy_status"
 				gfy_final_name=$(echo "$gfy_status" | grep -o 'gfy[Nn]ame":"[a-zA-Z]*' | head -1 | cut -c 11-)
 			else
 				gfy_final_name="$gfy_name"
@@ -268,6 +330,7 @@ function docdroid {
 		;;
 	upload)
 		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
+		echo "$docdroid_json"
 		docdroid_id=$(echo "$docdroid_json" | grep -o '[a-zA-Z0-9]*' | awk 'NR==3')
 		echo '' >&2
 		echo "Link: http://docdro.id/$docdroid_id"
