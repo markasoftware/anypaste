@@ -29,29 +29,14 @@ function curl_file_upload {
 	curl -X$1 -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
-# string json | string key -> string value
-# make sure no special chars in key, and key can't appear in json apart from as a key
-# don't try this at home kids
-# args: input json, key to search for
+# string json, string key -> string value
+# make sure no special chars in key, and key can't appear in json before it appears as a key
+# also make sure top_sekrit isn't in the input. Don't try this at home, kids!
 function json_parse {
-	echo "$1" | sed -E "s/.*\"$2\":\"?//;s/\"?(,|}).*//"
+	echo "$1" | sed -E "s/$2/top_sekrit/;s/.*\"top_sekrit\" *: *\"?//;s/\"?(,|}).*//;s/\\\//g"
 }
 
 # PLUGINS
-
-function sprunge {
-	case $1 in
-	check_eligibility)
-		[[ $ap_mime == text/* ]]
-		;;
-	upload)
-		sprunge_link=$(curl_form_upload 'sprunge' 'sprunge.us') || return 1
-		echo '' >&2
-		echo "Direct Link: $sprunge_link"
-		echo ''
-		;;
-	esac
-}
 
 function ixio {
 	case $1 in
@@ -61,7 +46,7 @@ function ixio {
 	upload)
 		ixio_link=$(curl_form_upload 'f:1' ix.io) || return 1
 		echo '' >&2
-		echo "Direct Link: $ixio_link"
+		echo "Direct: $ixio_link"
 		echo ''
 		;;
 	esac
@@ -78,7 +63,7 @@ function hastebin {
 		echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!' >&2
 		echo '' >&2
 		echo "Link: https://hastebin.com/$hastebin_id"
-		echo "Direct Link: https://hastebin.com/raw/$hastebin_id"
+		echo "Direct: https://hastebin.com/raw/$hastebin_id"
 		echo ''
 	esac
 }
@@ -93,7 +78,7 @@ function fileio {
 		fileio_link=$(json_parse "$fileio_json" 'link')
 		echo 'Reminder: file.io uploads are deleted after being download, or 14 days, whichever comes first!' >&2
 		echo '' >&2
-		echo "Direct Link: $fileio_link"
+		echo "Direct: $fileio_link"
 		echo ''
 		;;
 	esac
@@ -110,7 +95,7 @@ function transfersh {
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
 		echo '' >&2
-		echo "Direct Link: $transfersh_link"
+		echo "Direct: $transfersh_link"
 		echo ''
 		;;
 	esac
@@ -118,104 +103,94 @@ function transfersh {
 
 function vgyme {
 	case $1 in
-		check_eligibility)
-			# This is literally the worst possible way to design how the quotes should be used in a regex
-			[[ $ap_mime =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
-			;;
-		upload)
-			vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
-			vgyme_link=$(json_parse "$vgyme_json" 'url')
-			vgyme_direct=$(json_parse "$vgyme_json" 'image')
-			vgyme_delete=$(json_parse "$vgyme_json" 'delete')
-			echo '' >&2
-			echo "Link: $vgyme_link"
-			echo "Direct Link: $vgyme_direct"
-			echo "Delete: $vgyme_delete"
-			echo ''
-			;;
+	check_eligibility)
+		# This is literally the worst possible way to design how the quotes should be used in a regex
+		[[ $ap_mime =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
+		;;
+	upload)
+		vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
+		vgyme_link=$(json_parse "$vgyme_json" 'url')
+		vgyme_direct=$(json_parse "$vgyme_json" 'image')
+		vgyme_delete=$(json_parse "$vgyme_json" 'delete')
+		echo '' >&2
+		echo "Link: $vgyme_link"
+		echo "Direct: $vgyme_direct"
+		echo "Delete: $vgyme_delete"
+		echo ''
+		;;
 	esac
 }
 
 function tinyimg {
 	case $1 in
-		check_eligibility)
-			[[ $ap_mime == image/* ]] && check_size 10000000
-			;;
-		upload)
-			tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
-			tinyimg_filename=$(json_parse "$tinyimg_json" 'uploadName')
-			echo '' >&2
-			echo "Direct Link: https://tinyimg.io/i/$tinyimg_filename"
-			echo ''
-			;;
+	check_eligibility)
+		[[ $ap_mime == image/* ]] && check_size 10000000
+		;;
+	upload)
+		tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
+		tinyimg_filename=$(json_parse "$tinyimg_json" 'uploadName')
+		echo '' >&2
+		echo "Direct: https://tinyimg.io/i/$tinyimg_filename"
+		echo ''
+		;;
 	esac
 }
 
 function imgur {
 	case $1 in
-		check_eligibility)
-			[[ $ap_mime == image/* ]] && check_size 100000000
-			;;
-		upload)
-			imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
-				-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
-				'https://api.imgur.com/3/image') || return 1
-			imgur_id=$(json_parse "$imgur_json" 'id')
-			imgur_link=$(json_parse "$imgur_json" 'link')
-			imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
-			echo '' >&2
-			echo "Link: https://imgur.com/$imgur_id"
-			echo "Direct Link: $imgur_link"
-			echo "Edit: https://imgur.com/edit?deletehash=$imgur_deletehash"
-			echo "Delete: https://imgur.com/delete/$imgur_deletehash"
-			echo ''
+	check_eligibility)
+		[[ $ap_mime == image/* ]] && check_size 100000000
+		;;
+	upload)
+		imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
+			-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
+			'https://api.imgur.com/3/image') || return 1
+		imgur_id=$(json_parse "$imgur_json" 'id')
+		imgur_link=$(json_parse "$imgur_json" 'link')
+		imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
+		echo '' >&2
+		echo "Link: https://imgur.com/$imgur_id"
+		echo "Direct: $imgur_link"
+		echo "Edit: https://imgur.com/edit?deletehash=$imgur_deletehash"
+		echo "Delete: https://imgur.com/delete/$imgur_deletehash"
+		echo ''
 	esac
 }
 
 function instaudio {
 	case $1 in
-		check_eligibility)
-			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
-			;;
-		upload)
-			inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
-			inst_redirect=$(json_parse "$inst_json" 'redirect_url')
-			# this is POSIX compliant, I guess
-			ap_ext="${ap_path##*.}"
-			echo '' >&2
-			echo "Link: https://instaud.io$inst_redirect"
-			echo "Direct Link: https://instaud.io/_$inst_redirect.$ap_ext"
-			echo ''
-			;;
+	check_eligibility)
+		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
+		;;
+	upload)
+		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
+		inst_redirect=$(json_parse "$inst_json" 'redirect_url')
+		# this is POSIX compliant, I guess
+		ap_ext="${ap_path##*.}"
+		echo '' >&2
+		echo "Link: https://instaud.io$inst_redirect"
+		echo "Direct: https://instaud.io/_$inst_redirect.$ap_ext"
+		echo ''
+		;;
 	esac
 }
 
 function clyp {
 	case $1 in
-		check_eligibility)
-			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] || return 1
-			[[ -n $clyp_email ]] && check_size 20000000 || check_size 5000000
-			;;
-		upload)
-			if [[ -n $clyp_email ]]
-			then
-				clyp_login_json=$(curl -fH 'Authorization: Basic MjkzMTEOg==' \
-					-d "username=$clyp_email&password=$clyp_password&grant_type=password" \
-					https://api.clyp.it/oauth2/token) || return 1
-				clyp_token=$(json_parse "$clyp_login_json" 'access_token')
-				clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H "Authorization: Bearer $clyp_token" \
-					-H 'X-Client-Type: WebAlfa' https://upload.clyp.it/upload) || return 1
-			else
-				clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
-					https://upload.clyp.it/upload) || return 1
-			fi
-			clyp_link=$(json_parse "$clyp_json" 'Url')
-			clyp_mp3_direct_link=$(json_parse "$clyp_json" 'SecureMp3Url')
-			echo '' >&2
-			echo "Link: $clyp_link"
-			echo "Direct Link: $clyp_mp3_direct_link"
-			echo ''
-			;;
+	check_eligibility)
+		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] || return 1
+		check_size 5000000
+		;;
+	upload)
+		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
+			https://upload.clyp.it/upload) || return 1
+		clyp_link=$(json_parse "$clyp_json" 'Url')
+		clyp_mp3_direct_link=$(json_parse "$clyp_json" 'SecureMp3Url')
+		echo '' >&2
+		echo "Link: $clyp_link"
+		echo "Direct: $clyp_mp3_direct_link"
+		echo ''
+		;;
 	esac
 }
 
@@ -230,8 +205,7 @@ function streamable {
 		;;
 	upload)
 		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
-		echo "$streamable_json"
-		streamable_shortcode=$(echo "$streamable_json" | grep -o '\w*' | tail -n 1)
+		streamable_shortcode=$(json_parse "$streamable_json" 'shortcode')
 		echo '' >&2
 		echo "Link: https://streamable.com/$streamable_shortcode"
 		echo ''
@@ -249,9 +223,8 @@ function sendvid {
 		# and function properly if uploaded as a .mp4
 		# Maybe time for them to switch to mime type checking?
 		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" http://sendvid.com/api/v1/videos) || return 1
-		echo "$sendvid_json"
-		sendvid_pub=$(echo "$sendvid_json" | grep -o '\w*' | awk 'NR==5')
-		sendvid_priv=$(echo "$sendvid_json" | grep -o '[a-z0-9-]*' | tail -1)
+		sendvid_pub=$(json_parse "$sendvid_json" 'slug')
+		sendvid_priv=$(json_parse "$sendvid_json" 'secret')
 		echo '' >&2
 		echo "Link: https://sendvid.com/$sendvid_pub"
 		echo "Delete/Edit: https://sendvid.com/$sendvid_pub?secret=$sendvid_priv"
@@ -280,8 +253,7 @@ function gfycat {
 					return 1;
 				}
 			fi
-			echo "$gfy_init_json"
-			gfy_name=$(echo "$gfy_init_json" | grep -o '[a-zA-Z]*' | awk 'NR==4')
+			gfy_name=$(json_parse "$gfy_init_json" 'gfyname')
 			# the file being uploaded must have the same name as the key
 			# since i don't know how to set it using curl options, I'm
 			# just using a symbolic link with the correct name.
@@ -305,17 +277,18 @@ function gfycat {
 						echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
 						return 1;
 					}
-					[[ "$gfy_status" =~ 'complete' ]] && break
+					[[ $gfy_status == *complete* ]] && break
 				done
-				echo "$gfy_status"
-				gfy_final_name=$(echo "$gfy_status" | grep -o 'gfy[Nn]ame":"[a-zA-Z]*' | head -1 | cut -c 11-)
+				[[ $gfy_status == *gfyName* ]] && \
+					gfy_final_name=$(json_parse "$gfy_status" 'gfyName') || \
+					gfy_final_name=$(json_parse "$gfy_status" 'gfyname')
 			else
 				gfy_final_name="$gfy_name"
 				echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.' >&2
 			fi
 			echo '' >&2
 			echo "Link: https://gfycat.com/$gfy_final_name"
-			echo "Direct(ish) Link: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
+			echo "Direct: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
 			echo ''
 	esac
 }
@@ -330,10 +303,27 @@ function docdroid {
 		;;
 	upload)
 		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
-		echo "$docdroid_json"
-		docdroid_id=$(echo "$docdroid_json" | grep -o '[a-zA-Z0-9]*' | awk 'NR==3')
+		docdroid_id=$(json_parse "$docdroid_json" 'id')
+		docdroid_filename=$(json_parse "$docdroid_json" 'filename')
 		echo '' >&2
 		echo "Link: http://docdro.id/$docdroid_id"
+		echo "Direct: https://www.docdroid.net/file/download/$docdroid_id/$docdroid_filename"
+		echo ''
+		;;
+	esac
+}
+
+function pomf {
+	case $1 in
+	check_eligibility)
+		# that's right, 5gb motherfuckers
+		check_size 5120000000
+		;;
+	upload)
+		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}" | tr -d \\n) || return 1
+		pomf_link=$(json_parse "$pomf_json" 'url')
+		echo '' >&2
+		echo "Direct: $pomf_link"
 		echo ''
 		;;
 	esac
@@ -540,11 +530,11 @@ then
 # You'll need to uncomment (remove # at beginning of line) first
 # ap_plugins=(
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
-# 'tinyimg' 'vgyme' # Images
-# 'instaudio' # Audio
-# 'hastebin' 'ixio' 'sprunge' # Text
+# 'tinyimg' 'imgur' 'vgyme' # Images
+# 'instaudio' 'clyp' # Audio
+# 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
-# 'transfersh' 'fileio' # Generic
+# 'pomf' 'transfersh' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -575,7 +565,7 @@ export PATH="$HOME/.anypaste-plugins:$PATH"
 
 # default plugins
 ap_plugins=(
-	'sendvid' 'streamable' 'gfycat' 'tinyimg' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'sprunge' 'docdroid' 'transfersh' 'fileio'
+	'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 )
 
 # this could fail if no config file
