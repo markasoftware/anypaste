@@ -304,7 +304,7 @@ function ap_i_yn {
 # args: search term
 function search_compatible_plugins {
 	# If empty, use first plugin
-	[[ -z "$1" ]] && ap_plugin="$ap_compatible_plugins" && return
+	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[@]:0:1}" && return
 	# If the plugin is the exact name of a command, we can use it even if not in config
 	$ap_x && command -v "$1" > /dev/null && ap_plugin="$1" && return
 	ap_matched_plugins=()
@@ -581,20 +581,17 @@ function upload_loop {
 		do
 			ap_i_select_plugin || return 1
 			ap_i_yn "Attempt to upload with plugin '$ap_plugin'?" >&2 || continue
-			# TODO: test whether this actually works over multiple lines?
-			if ! upload_plugin
-			then
-				# we have to use unset to remove the selected one, but it only
-				# takes an index :(
-				for i in "${!ap_compatible_plugins[@]}"
-				do
-					if [[ ${ap_compatible_plugins[$i]} == $ap_plugin ]]
-					then
-						unset "ap_compatible_plugins[$i]"
-						break
-					fi
-				done
-			fi
+			upload_plugin && break
+			# we have to use unset to remove the selected one, but it only
+			# takes an index :(
+			for i in "${!ap_compatible_plugins[@]}"
+			do
+				if [[ ${ap_compatible_plugins[$i]} == $ap_plugin ]]
+				then
+					unset "ap_compatible_plugins[$i]"
+					break
+				fi
+			done
 		done
 	else
 		# NON-INTERACTIVE
@@ -669,6 +666,7 @@ do
 	then
 		echo "$ap_user_path is not readable!" >&2
 		echo 'Make sure it exists and you have proper permissions for it.' >&2
+		ap_exit_code=101
 		ap_failed_ul
 		continue
 	# IS A DIRECTORY
@@ -687,25 +685,30 @@ do
 			echo "$PWD/$ap_basename"
 		)
 	fi
-	ap_ok_uls+=("$ap_user_path")
 	export ap_mime=$(file --mime-type --brief "$ap_path")
 	# TODO: maybe don't call it human name? confusing with user name
 	export ap_human_name=${ap_human_name:-$(basename "$ap_path")}
-	upload_loop || ap_exit_code=100
+	if upload_loop
+	then
+		ap_ok_uls+=("$ap_user_path")
+	else
+		ap_exit_code=100
+		ap_failed_ul
+	fi
 done
 
 # SUMMARY if multiple files uploaded
 if [[ $[${#ap_ok_uls[@]} + ${#ap_fail_uls[@]}] -gt 1 ]]
 then
 	echo -en '\nSucessfully uploaded:' >&2
-	[[ -n "$ap_ok_uls" ]] && printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n 'None' >&2
+	[[ -n "$ap_ok_uls" ]] && printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
 	echo >&2
-	if [[ -n "$ap_fail_uls" ]]
+	if [[ -n $ap_fail_uls ]]
 	then
 		echo -n 'Failed to upload:' >&2
 		printf " '%s'" "${ap_fail_uls[@]}" >&2
 		echo >&2
-		[[ -n "$ap_ok_uls" ]] && ap_exit_code=103 || ap_exit_code=101
+		[[ -n $ap_ok_uls ]] && ap_exit_code=$[ap_exit_code + 100]
 	fi
 fi
 
