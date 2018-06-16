@@ -26,13 +26,14 @@ function curl_form_upload {
 }
 
 function curl_file_upload {
-	curl -X$1 -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+	curl "-X$1" -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
 }
 
 # string json, string key -> string value
 # make sure no special chars in key, and key can't appear in json before it appears as a key
 # also make sure top_sekrit isn't in the input. Don't try this at home, kids!
 function json_parse {
+	# shellcheck disable=1117
 	echo "$1" | sed -E "s/$2/top_sekrit/;s/.*\"top_sekrit\" *: *\"?//;s/\"?(,|}).*//;s/\\\//g"
 }
 
@@ -204,6 +205,7 @@ function streamable {
 		echo 'streamable_password'
 		;;
 	upload)
+		# shellcheck disable=2154
 		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
 		streamable_shortcode=$(json_parse "$streamable_json" 'shortcode')
 		echo '' >&2
@@ -236,11 +238,14 @@ function sendvid {
 function gfycat {
 	case $1 in
 		check_eligibility)
+			# I'm not sure why shellcheck is angry about this
+			# shellcheck disable=2140
 			[[ $ap_mime =~ "video/"|"image/gif" ]]
 			;;
 		upload)
 			# this is one of the more complex ones
 			# get the key/name of the gfy
+			# shellcheck disable=2154
 			if [[ -n "$gfycat_duplicates" ]]
 			then
 				gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
@@ -272,7 +277,7 @@ function gfycat {
 				while true
 				do
 					sleep 4
-					gfy_status=$(curl -fs https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name) || {
+					gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
 						echo 'Status check request did not return HTTP 200!' >&2
 						echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
 						return 1;
@@ -302,6 +307,7 @@ function docdroid {
 		[[ $ap_mime =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
 		;;
 	upload)
+		# shellcheck disable=2154
 		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
 		docdroid_id=$(json_parse "$docdroid_json" 'id')
 		docdroid_filename=$(json_parse "$docdroid_json" 'filename')
@@ -320,7 +326,8 @@ function pomf {
 		check_size 5120000000
 		;;
 	upload)
-		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}" | tr -d \\n) || return 1
+		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}") || return 1
+		pomf_json=$(tr -d \\n <<< "$pomf_json")
 		pomf_link=$(json_parse "$pomf_json" 'url')
 		echo '' >&2
 		echo "Direct: $pomf_link"
@@ -339,8 +346,8 @@ function pomf {
 # exit safely, remove temporary files if any
 ap_tmp_files=()
 function ap_exit {
-	[[ -n "$ap_tmp_files" ]] && rm "${ap_tmp_files[@]}"
-	[[ -n $1 ]] && exit $1 || exit
+	[[ ${#ap_tmp_files[@]} -gt 0 ]] && rm "${ap_tmp_files[@]}"
+	[[ -n $1 ]] && exit "$1" || exit
 }
 
 # Y is always default. Word your questions better. Be positive!
@@ -357,13 +364,13 @@ function ap_i_yn {
 # args: search term
 function search_compatible_plugins {
 	# If empty, use first plugin
-	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[@]:0:1}" && return
+	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[*]:0:1}" && return
 	# If the plugin is the exact name of a command, we can use it even if not in config
 	$ap_x && command -v "$1" > /dev/null && ap_plugin="$1" && return
 	ap_matched_plugins=()
 	for ap_plugin in "${ap_compatible_plugins[@]}"
 	do
-		[[ "$ap_plugin" =~ "$1" ]] && ap_matched_plugins+=("$ap_plugin")
+		[[ $ap_plugin == *$1* ]] && ap_matched_plugins+=("$ap_plugin")
 	done
 	case ${#ap_matched_plugins[@]} in
 	0)
@@ -374,7 +381,7 @@ function search_compatible_plugins {
 		return 1
 		;;
 	1)
-		ap_plugin="$ap_matched_plugins"
+		ap_plugin="${ap_matched_plugins[*]}"
 		;;
 	*)
 		echo -n "Multiple plugins matched '$1':" >&2
@@ -407,8 +414,7 @@ function ap_i_select_plugin {
 	done
 }
 
-# HELP
-
+#shellcheck disable=2016
 ap_help='
 Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
 
@@ -467,6 +473,7 @@ ap_cfg=""
 
 while getopts 'Cvxfhsip:c:n:' ap_opt
 do
+	# shellcheck disable=2220
 	case $ap_opt in
 	h)
 		echo "$ap_help"
@@ -503,7 +510,7 @@ do
 	esac
 done
 
-shift $[OPTIND - 1]
+shift $((OPTIND - 1))
 
 # CREATE CONFIGURATION
 
@@ -523,7 +530,7 @@ fi
 
 if $ap_C
 then
-	cat > "$ap_cfg" << CFG
+	cat > "$ap_cfg" << 'CFG'
 # List of plugins
 # If there are multiple compatible plugins, precedence is determined
 # by which one is listed first in this array
@@ -568,7 +575,8 @@ ap_plugins=(
 	'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 )
 
-# this could fail if no config file
+# this could fail if no config file, hence why 2> /dev/null
+# shellcheck disable=1090
 source "$ap_cfg" 2> /dev/null
 
 [[ ${#ap_plugins[@]} -eq 0 ]] && echo 'No plugins listed in config!' && ap_exit 100
@@ -586,7 +594,7 @@ function check_eligibility {
 			missing_configs+=("$cur_req_config")
 		fi
 	done
-	if [[ -n "$missing_configs" ]]
+	if [[ ${#missing_configs[@]} == 0 ]]
 	then
 		echo -n "Plugin '$ap_plugin' is compatible, but missing config parameters:" >&2
 		printf " '%s'" "${missing_configs[@]}" >&2
@@ -639,7 +647,7 @@ function upload_loop {
 			# takes an index :(
 			for i in "${!ap_compatible_plugins[@]}"
 			do
-				if [[ ${ap_compatible_plugins[$i]} == $ap_plugin ]]
+				if [[ ${ap_compatible_plugins[$i]} == "$ap_plugin" ]]
 				then
 					unset "ap_compatible_plugins[$i]"
 					break
@@ -710,7 +718,7 @@ do
 			echo 'Stdin specified, but stdin is a terminal!' >&2
 			continue
 		fi
-		export ap_path=$(ap_rand_tmp)
+		ap_path=$(ap_rand_tmp)
 		ap_tmp_files+=("$ap_path")
 		cat > "$ap_path"
 		ap_found_stdin='true'
@@ -726,19 +734,21 @@ do
 	elif [[ -d "$ap_user_path" ]]
 	then
 		echo "$ap_user_path is a directory, creating tarball..." >&2
-		export ap_path="$(ap_rand_tmp).tar.gz"
+		ap_path="$(ap_rand_tmp).tar.gz"
 		ap_tmp_files+=("$ap_path")
 		tar czf "$ap_path" -C "$ap_user_path" .
 	# NOTHING SPECIAL
 	else
-		export ap_path=$(
-			ap_dirname=$(dirname "$ap_user_path")
-			ap_basename=$(basename "$ap_user_path")
-			cd "$ap_dirname"
-			echo "$PWD/$ap_basename"
-		)
+		ap_dirname=$(dirname "$ap_user_path")
+		ap_basename=$(basename "$ap_user_path")
+		# I'm not convinced we need the || cases here, but shellcheck is.
+		pushd "$ap_dirname" || ap_exit 1
+		ap_path="$PWD/$ap_basename"
+		popd || ap_exit 1
 	fi
-	export ap_mime=$(file --mime-type --brief "$ap_path")
+	export ap_path
+	ap_mime=$(file --mime-type --brief "$ap_path")
+	export ap_mime
 	# TODO: maybe don't call it human name? confusing with user name
 	export ap_human_name=${ap_human_name:-$(basename "$ap_path")}
 	if upload_loop
@@ -751,17 +761,17 @@ do
 done
 
 # SUMMARY if multiple files uploaded
-if [[ $[${#ap_ok_uls[@]} + ${#ap_fail_uls[@]}] -gt 1 ]]
+if [[ $((${#ap_ok_uls[@]} + ${#ap_fail_uls[@]})) -gt 1 ]]
 then
 	echo -en '\nSucessfully uploaded:' >&2
-	[[ -n "$ap_ok_uls" ]] && printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
+	[[ ${#ap_ok_uls[@]} -gt 0 ]] && printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
 	echo >&2
-	if [[ -n $ap_fail_uls ]]
+	if [[ ${#ap_fail_uls[@]} -gt 0 ]]
 	then
 		echo -n 'Failed to upload:' >&2
 		printf " '%s'" "${ap_fail_uls[@]}" >&2
 		echo >&2
-		[[ -n $ap_ok_uls ]] && ap_exit_code=$[ap_exit_code + 100]
+		[[ ${#ap_ok_uls[@]} -gt 0 ]] && ((ap_exit_code+=100))
 	fi
 fi
 
