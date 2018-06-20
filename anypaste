@@ -4,10 +4,10 @@
 # This software is released under the GPLv3, see gnu.org
 # Homepage at anypaste.xyz
 
-# Version:
+# shellcheck disable=2128
+
 ap_version='1.0.3'
-# Are we on mac?
-[[ $(uname) == Darwin ]] && ap_mac='true' || ap_mac='false'
+[[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 
 # BEGIN PLUGINS
 
@@ -46,9 +46,9 @@ function ixio {
 		;;
 	upload)
 		ixio_link=$(curl_form_upload 'f:1' ix.io) || return 1
-		echo '' >&2
+		echo >&2
 		echo "Direct: $ixio_link"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -62,10 +62,10 @@ function hastebin {
 		hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
 		hastebin_id=$(json_parse "$hastebin_json" 'key')
 		echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!' >&2
-		echo '' >&2
+		echo >&2
 		echo "Link: https://hastebin.com/$hastebin_id"
 		echo "Direct: https://hastebin.com/raw/$hastebin_id"
-		echo ''
+		echo
 	esac
 }
 
@@ -78,9 +78,9 @@ function fileio {
 		fileio_json=$(curl_form_upload 'file' 'https://file.io') || return 1
 		fileio_link=$(json_parse "$fileio_json" 'link')
 		echo 'Reminder: file.io uploads are deleted after being download, or 14 days, whichever comes first!' >&2
-		echo '' >&2
+		echo >&2
 		echo "Direct: $fileio_link"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -95,9 +95,9 @@ function transfersh {
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
-		echo '' >&2
+		echo >&2
 		echo "Direct: $transfersh_link"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -113,11 +113,11 @@ function vgyme {
 		vgyme_link=$(json_parse "$vgyme_json" 'url')
 		vgyme_direct=$(json_parse "$vgyme_json" 'image')
 		vgyme_delete=$(json_parse "$vgyme_json" 'delete')
-		echo '' >&2
+		echo >&2
 		echo "Link: $vgyme_link"
 		echo "Direct: $vgyme_direct"
 		echo "Delete: $vgyme_delete"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -130,9 +130,9 @@ function tinyimg {
 	upload)
 		tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
 		tinyimg_filename=$(json_parse "$tinyimg_json" 'uploadName')
-		echo '' >&2
+		echo >&2
 		echo "Direct: https://tinyimg.io/i/$tinyimg_filename"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -149,12 +149,12 @@ function imgur {
 		imgur_id=$(json_parse "$imgur_json" 'id')
 		imgur_link=$(json_parse "$imgur_json" 'link')
 		imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
-		echo '' >&2
+		echo >&2
 		echo "Link: https://imgur.com/$imgur_id"
 		echo "Direct: $imgur_link"
 		echo "Edit: https://imgur.com/edit?deletehash=$imgur_deletehash"
 		echo "Delete: https://imgur.com/delete/$imgur_deletehash"
-		echo ''
+		echo
 	esac
 }
 
@@ -168,10 +168,10 @@ function instaudio {
 		inst_redirect=$(json_parse "$inst_json" 'redirect_url')
 		# this is POSIX compliant, I guess
 		ap_ext="${ap_path##*.}"
-		echo '' >&2
+		echo >&2
 		echo "Link: https://instaud.io$inst_redirect"
 		echo "Direct: https://instaud.io/_$inst_redirect.$ap_ext"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -187,10 +187,10 @@ function clyp {
 			https://upload.clyp.it/upload) || return 1
 		clyp_link=$(json_parse "$clyp_json" 'Url')
 		clyp_mp3_direct_link=$(json_parse "$clyp_json" 'SecureMp3Url')
-		echo '' >&2
+		echo >&2
 		echo "Link: $clyp_link"
 		echo "Direct: $clyp_mp3_direct_link"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -208,9 +208,9 @@ function streamable {
 		# shellcheck disable=2154
 		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
 		streamable_shortcode=$(json_parse "$streamable_json" 'shortcode')
-		echo '' >&2
+		echo >&2
 		echo "Link: https://streamable.com/$streamable_shortcode"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -227,10 +227,10 @@ function sendvid {
 		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" http://sendvid.com/api/v1/videos) || return 1
 		sendvid_pub=$(json_parse "$sendvid_json" 'slug')
 		sendvid_priv=$(json_parse "$sendvid_json" 'secret')
-		echo '' >&2
+		echo >&2
 		echo "Link: https://sendvid.com/$sendvid_pub"
 		echo "Delete/Edit: https://sendvid.com/$sendvid_pub?secret=$sendvid_priv"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -291,10 +291,10 @@ function gfycat {
 				gfy_final_name="$gfy_name"
 				echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.' >&2
 			fi
-			echo '' >&2
+			echo >&2
 			echo "Link: https://gfycat.com/$gfy_final_name"
 			echo "Direct: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
-			echo ''
+			echo
 	esac
 }
 
@@ -311,10 +311,10 @@ function docdroid {
 		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
 		docdroid_id=$(json_parse "$docdroid_json" 'id')
 		docdroid_filename=$(json_parse "$docdroid_json" 'filename')
-		echo '' >&2
+		echo >&2
 		echo "Link: http://docdro.id/$docdroid_id"
 		echo "Direct: https://www.docdroid.net/file/download/$docdroid_id/$docdroid_filename"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -329,9 +329,9 @@ function pomf {
 		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}") || return 1
 		pomf_json=$(tr -d \\n <<< "$pomf_json")
 		pomf_link=$(json_parse "$pomf_json" 'url')
-		echo '' >&2
+		echo >&2
 		echo "Direct: $pomf_link"
-		echo ''
+		echo
 		;;
 	esac
 }
@@ -341,12 +341,45 @@ function pomf {
 ## BEGIN CORE ###
 #################
 
+# HOOKS
+
+function ap_copy_hook {
+	# -m isn't POSIX :(
+	ap_copy_me=$(grep -E "${ap_copy_regex:-.}" <<< "$ap_last_stdout" | head -n 1)
+	ap_copy_me="${ap_copy_me##*: }"
+	if $ap_mac
+	then
+		pbcopy "$ap_copy_me"
+	elif command -v xsel >/dev/null
+	then
+		echo -n "$ap_copy_me" | xsel -ib
+	elif command -v xclip >/dev/null
+	then
+		echo -n "$ap_copy_me" | xclip -selection clipboard
+	else
+		echo 'WARNING: no suitable program to copy text was found on your system. Please report a bug!'
+	fi
+}
+
+function ap_notify_hook {
+	ap_notification_text="Anypaste upload complete: $ap_human_name"
+	if $ap_mac
+	then
+		# hahahaha motherfuckers
+		say "$ap_notification_text"
+		osascript -e "display notification \"$ap_notification_text\""
+	else
+		command -v notify-send >/dev/null && notify-send "$ap_notification_text" || \
+			echo 'WARNING: Install notify-send if you want --notify to work.'
+	fi
+}
+
 # FUNCTIONS
 
 # exit safely, remove temporary files if any
-ap_tmp_files=()
+ap_tmp_files=('/tmp/ap_stdout')
 function ap_exit {
-	[[ ${#ap_tmp_files[@]} -gt 0 ]] && rm "${ap_tmp_files[@]}"
+	[[ ${#ap_tmp_files[@]} -gt 0 ]] && rm -f "${ap_tmp_files[@]}"
 	[[ -n $1 ]] && exit "$1" || exit
 }
 
@@ -364,7 +397,7 @@ function ap_i_yn {
 # args: search term
 function search_compatible_plugins {
 	# If empty, use first plugin
-	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[*]:0:1}" && return
+	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[@]:0:1}" && return
 	# If the plugin is the exact name of a command, we can use it even if not in config
 	$ap_x && command -v "$1" > /dev/null && ap_plugin="$1" && return
 	ap_matched_plugins=()
@@ -377,16 +410,16 @@ function search_compatible_plugins {
 		echo "No plugins matched '$1'." >&2
 		echo -n 'Available plugins are:' >&2
 		printf " '%s'" "${ap_compatible_plugins[@]}" >&2
-		echo '' >&2
+		echo >&2
 		return 1
 		;;
 	1)
-		ap_plugin="${ap_matched_plugins[*]}"
+		ap_plugin="${ap_matched_plugins[@]:0:1}"
 		;;
 	*)
 		echo -n "Multiple plugins matched '$1':" >&2
 		printf " '%s'" "${ap_matched_plugins[@]}" >&2
-		echo '' >&2
+		echo >&2
 		echo 'Refine your search and try again.' >&2
 		return 1
 		;;
@@ -403,11 +436,11 @@ function ap_i_select_plugin {
 	fi
 	echo -n 'The following plugins were found:' >&2
 	printf " '%s'" "${ap_compatible_plugins[@]}" >&2
-	echo '' >&2
+	echo >&2
 	# keep asking for search terms until we find something
 	while true
 	do
-		echo '' >&2
+		echo >&2
 		echo 'Enter the (partial) name of a plugin, or nothing for automatic selection' >&2
 		read -r ap_search_term
 		search_compatible_plugins "$ap_search_term" && break
@@ -450,19 +483,7 @@ OPTIONS:
 Plugins may support additional options not listed here.
 '
 
-if [[ "$*" =~ '--help' ]]
-then
-	echo "$ap_help"
-	ap_exit
-fi
-
-if [[ "$*" =~ '--version' ]]
-then
-	echo "Anypaste $ap_version"
-	ap_exit
-fi
-
-# PARSE OPTIONS
+# PARSE CLI OPTIONS
 
 ap_i='false'
 ap_f='false'
@@ -470,8 +491,38 @@ ap_x='false'
 ap_C='false'
 ap_p=""
 ap_cfg=""
+ap_copy='false'
+ap_notify='false'
 
-while getopts 'Cvxfhsip:c:n:' ap_opt
+ap_args=("$@")
+
+# janky long option finder, because we can't use GNU getopt. Fuck mac. Wait, did I already say that?
+for i in "${!ap_args[@]}"
+do
+	ap_found_long_opt=true
+	case "${ap_args[$i]}" in
+		'--help')
+			echo "$ap_help"
+			ap_exit
+			;;
+		'--version')
+			echo "Anypaste $ap_version"
+			ap_exit
+			;;
+		'--copy') ap_copy=true;;
+		'--notify') ap_notify=true;;
+		*) ap_found_long_opt=false;;
+	esac
+	$ap_found_long_opt && unset "ap_args[$i]"
+done
+
+# This is necessary to make the pseudo-shift with OPTIND work later
+ap_args=("${ap_args[@]}")
+
+# the - is so that it ignores long options without error
+# Shellcheck actually checks specifically for getopts options in the case. How cool is that?
+# shellcheck disable=2213
+while getopts 'C-vxfhsip:c:n:' ap_opt "${ap_args[@]}"
 do
 	# shellcheck disable=2220
 	case $ap_opt in
@@ -510,7 +561,7 @@ do
 	esac
 done
 
-shift $((OPTIND - 1))
+ap_args=("${ap_args[@]:$((OPTIND-1))}")
 
 # CREATE CONFIGURATION
 
@@ -574,12 +625,16 @@ export PATH="$HOME/.anypaste-plugins:$PATH"
 ap_plugins=(
 	'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 )
+ap_hooks=()
 
 # this could fail if no config file, hence why 2> /dev/null
 # shellcheck disable=1090
 source "$ap_cfg" 2> /dev/null
 
-[[ ${#ap_plugins[@]} -eq 0 ]] && echo 'No plugins listed in config!' && ap_exit 100
+[[ ${#ap_plugins[@]} == 0 ]] && echo 'No plugins listed in config!' && ap_exit 100
+
+$ap_copy && ap_hooks+=('ap_copy_hook')
+$ap_notify && ap_hooks+=('ap_notify_hook')
 
 # CHECK CONFIGURATION PARAMETERS FUNCTION
 
@@ -594,22 +649,31 @@ function check_eligibility {
 			missing_configs+=("$cur_req_config")
 		fi
 	done
-	if [[ ${#missing_configs[@]} == 0 ]]
+	if [[ ${#missing_configs[@]} -gt 0 ]]
 	then
 		echo -n "Plugin '$ap_plugin' is compatible, but missing config parameters:" >&2
 		printf " '%s'" "${missing_configs[@]}" >&2
-		echo '' >&2
+		echo >&2
 		echo "You can set them in $ap_cfg" >&2
 		return 1
 	fi
 }
 
-# UPLOAD FUNCTION
+function run_hooks {
+	for i in "${ap_hooks[@]}"
+	do
+		$i
+	done
+}
 
 function upload_plugin {
 	echo "Attempting to upload with plugin '$ap_plugin'" >&2
-	if $ap_plugin upload
+	export ap_last_stdout
+	if $ap_plugin upload | tee /tmp/ap_stdout_cache
 	then
+		ap_last_stdout=$(</tmp/ap_stdout_cache)
+		# shellcheck disable=2154
+		[[ $ap_hook_policy == greedy ]] && run_hooks
 		echo 'Upload complete.' >&2
 	else
 		echo "Plugin failed with error code $?" >&2
@@ -650,6 +714,7 @@ function upload_loop {
 				if [[ ${ap_compatible_plugins[$i]} == "$ap_plugin" ]]
 				then
 					unset "ap_compatible_plugins[$i]"
+					ap_compatible_plugins=("${ap_compatible_plugins[@]}")
 					break
 				fi
 			done
@@ -679,7 +744,7 @@ function ap_rand_tmp {
 }
 ap_found_stdin='false'
 # NO FILES SPECIFIED
-if [[ $# -eq 0 ]]
+if [[ ${#ap_args[@]} == 0 ]]
 then
 	if [[ -t 0 ]]
 	then
@@ -690,8 +755,6 @@ then
 		ap_exit 102
 	fi
 	ap_args=('-')
-else
-	ap_args=("$@")
 fi
 # LOOP THROUGH FILES
 ap_ok_uls=()
@@ -704,7 +767,7 @@ do
 	# HANDLE WEIRD FILES
 
 	# STDIN
-	if [[ "$ap_user_path" == '-' ]]
+	if [[ $ap_user_path == '-' ]]
 	then
 		if $ap_found_stdin
 		then
@@ -742,9 +805,9 @@ do
 		ap_dirname=$(dirname "$ap_user_path")
 		ap_basename=$(basename "$ap_user_path")
 		# I'm not convinced we need the || cases here, but shellcheck is.
-		pushd "$ap_dirname" || ap_exit 1
+		pushd "$ap_dirname" >/dev/null || ap_exit 1
 		ap_path="$PWD/$ap_basename"
-		popd || ap_exit 1
+		popd >/dev/null || ap_exit 1
 	fi
 	export ap_path
 	ap_mime=$(file --mime-type --brief "$ap_path")
@@ -763,9 +826,17 @@ done
 # SUMMARY if multiple files uploaded
 if [[ $((${#ap_ok_uls[@]} + ${#ap_fail_uls[@]})) -gt 1 ]]
 then
+	# SUCCESSES
 	echo -en '\nSucessfully uploaded:' >&2
-	[[ ${#ap_ok_uls[@]} -gt 0 ]] && printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
+	if [[ ${#ap_ok_uls[@]} -gt 0 ]]
+	then
+		printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
+		[[ $ap_hook_policy != greedy ]] && run_hooks
+	fi
+
 	echo >&2
+
+	# FAILURES
 	if [[ ${#ap_fail_uls[@]} -gt 0 ]]
 	then
 		echo -n 'Failed to upload:' >&2
