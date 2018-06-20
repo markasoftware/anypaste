@@ -391,6 +391,43 @@ function ap_i_yn {
 	[[ "$ap_attempt" != 'n' && "$ap_attempt" != 'N' ]]
 }
 
+function ap_kde_vars {
+	[[ -n $ap_kde_service_path ]] && return
+	if ! command -v kf5-config > /dev/null
+	then
+		echo 'Is KDE Plasma installed? kf5-config does not seem to exist.'
+		ap_exit 1
+	fi
+	ap_kde_service_path_dir="$(kf5-config --path services)"
+	mkdir -p "$ap_kde_service_path_dir"
+	ap_kde_service_path="${ap_kde_service_path_dir%%:*}anypaste.desktop"
+}
+function ap_kde_install {
+	ap_kde_vars
+	cat > "$ap_kde_service_path" <<'DESKTOP'
+[Desktop Entry]
+Type=Service
+Icon=upload-media
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/all;
+Actions=Paste;
+Encoding=UTF-8
+
+[Desktop Action Paste]
+Name=Upload with Anypaste
+Icon=upload-media
+Exec=bash -c konsole -e anypaste '%f'; echo Press any key to exit...; read -n 1
+DESKTOP
+	echo 'Service menu installed.' >&2
+	ap_exit
+}
+
+function ap_kde_remove {
+	rm -f "$ap_kde_service_path"
+	echo 'Service menu removed.' >&2
+	ap_exit
+}
+
 # will search $ap_compatible_plugins for search term. If successful, matched plugin
 # will go in $ap_plugin. If failed, it will print an error and return 1
 # Also, if search term is the exact name of an executable, it will be ok if ap_x
@@ -501,14 +538,10 @@ for i in "${!ap_args[@]}"
 do
 	ap_found_long_opt=true
 	case "${ap_args[$i]}" in
-		'--help')
-			echo "$ap_help"
-			ap_exit
-			;;
-		'--version')
-			echo "Anypaste $ap_version"
-			ap_exit
-			;;
+		'--help') echo "$ap_help"; ap_exit;;
+		'--version') echo "Anypaste $ap_version"; ap_exit;;
+		'--kde-install') ap_kde_install; ap_exit;;
+		'--kde-remove') ap_kde_remove; ap_exit;;
 		'--copy') ap_copy=true;;
 		'--notify') ap_notify=true;;
 		*) ap_found_long_opt=false;;
