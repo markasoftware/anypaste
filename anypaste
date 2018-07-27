@@ -6,6 +6,14 @@
 
 # shellcheck disable=2128
 
+export ap_version
+export ap_mac
+export ap_path
+export ap_human_name
+export ap_mime
+export ap_size
+export ap_plugin
+export ap_last_stdout
 ap_version='1.0.3'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 
@@ -14,7 +22,7 @@ ap_version='1.0.3'
 # COMMON PLUGIN FUNCTIONS
 
 function check_size {
-	if ! [[ $(wc -c < "$ap_path") -lt $1 ]]
+	if ! [[ $ap_size -lt $1 ]]
 	then
 		echo "WARNING: File is of compatible type for plugin '$ap_plugin', but is above size limit of $1 bytes" >&2
 		return 1
@@ -362,14 +370,26 @@ function ap_copy_hook {
 }
 
 function ap_notify_hook {
-	ap_notification_text="Anypaste upload complete: $ap_human_name"
+	local notification_title='Anypaste upload complete.'
+	# for shellcheck 2155
+	local notification_text
+	if [[ $ap_hook_policy == greedy ]]
+	then
+		notification_text="Uploaded: '$ap_human_name'."
+	else
+		notification_text=$(
+			echo -n 'Uploaded:'
+			printf " '%s'" "${ap_ok_uls[@]}"
+			echo -n '.'
+		)
+	fi
 	if $ap_mac
 	then
 		# hahahaha motherfuckers
-		say "$ap_notification_text"
-		osascript -e "display notification \"$ap_notification_text\""
+		say "$notification_text"
+		osascript -e "display notification \"$notification_title $notification_text\""
 	else
-		command -v notify-send >/dev/null && notify-send "$ap_notification_text" || \
+		command -v notify-send >/dev/null && notify-send -a anypaste - 8000 "$notification_title" "$notification_text" || \
 			echo 'WARNING: Install notify-send if you want --notify to work.'
 	fi
 }
@@ -377,10 +397,25 @@ function ap_notify_hook {
 # FUNCTIONS
 
 # exit safely, remove temporary files if any
-ap_tmp_files=('/tmp/ap_stdout')
 function ap_exit {
-	[[ ${#ap_tmp_files[@]} -gt 0 ]] && rm -f "${ap_tmp_files[@]}"
-	[[ -n $1 ]] && exit "$1" || exit
+	rm -f "/tmp/ap_*"
+	exit "$@"
+}
+
+declare -A ap_memoize_codes
+declare -A ap_memoize_stdouts
+function ap_memoize {
+	# TODO: switch more stuff over to `local`
+	local IFS='|'
+	local memoize_key="$*"
+	if [[ -n "${ap_memoize_codes[$memoize_key]}" ]]
+	then
+		echo -n "${ap_memoize_stdouts[$memoize_key]}"
+		return "${ap_memoize_codes[$memoize_key]}"
+	else
+		ap_memoize_stdouts[$memoize_key]=$("$@")
+		ap_memoize_codes[$memoize_key]="$?"
+	fi
 }
 
 # Y is always default. Word your questions better. Be positive!
@@ -391,51 +426,31 @@ function ap_i_yn {
 	[[ "$ap_attempt" != 'n' && "$ap_attempt" != 'N' ]]
 }
 
-# will search $ap_compatible_plugins for search term. If successful, matched plugin
-# will go in $ap_plugin. If failed, it will print an error and return 1
-# Also, if search term is the exact name of an executable, it will be ok if ap_x
-# args: search term
-function search_compatible_plugins {
-	# If empty, use first plugin
-	[[ -z "$1" ]] && ap_plugin="${ap_compatible_plugins[@]:0:1}" && return
+# @param ap_search_plugins_arg: array of available plugins
+# @param $1: search term
+# @return ap_search_plugins_return: Array of plugins containing search term
+function ap_search_plugins {
 	# If the plugin is the exact name of a command, we can use it even if not in config
 	$ap_x && command -v "$1" > /dev/null && ap_plugin="$1" && return
-	ap_matched_plugins=()
-	for ap_plugin in "${ap_compatible_plugins[@]}"
+	ap_search_plugins_return=()
+	for ap_plugin in "${ap_search_plugins_arg[@]}"
 	do
-		[[ $ap_plugin == *$1* ]] && ap_matched_plugins+=("$ap_plugin")
+		[[ $ap_plugin == *$1* ]] && ap_search_plugins_return+=("$ap_plugin")
 	done
-	case ${#ap_matched_plugins[@]} in
-	0)
-		echo "No plugins matched '$1'." >&2
-		echo -n 'Available plugins are:' >&2
-		printf " '%s'" "${ap_compatible_plugins[@]}" >&2
-		echo >&2
-		return 1
-		;;
-	1)
-		ap_plugin="${ap_matched_plugins[@]:0:1}"
-		;;
-	*)
-		echo -n "Multiple plugins matched '$1':" >&2
-		printf " '%s'" "${ap_matched_plugins[@]}" >&2
-		echo >&2
-		echo 'Refine your search and try again.' >&2
-		return 1
-		;;
-	esac
 }
 
+# @param ap_i_select_plugin_arg available plugins, filtered as much as possible
+# @return ap_i_select_plugin_return single plugin as selected by user
 function ap_i_select_plugin {
 	# fail if no plugins
-	[[ ${#ap_compatible_plugins[@]} -eq 0 ]] && return 1
-	if [[ ${#ap_compatible_plugins[@]} -eq 1 ]] 
+	[[ ${#ap_i_select_plugin_arg[@]} -eq 0 ]] && return 1
+	if [[ ${#ap_i_select_plugin_arg[@]} -eq 1 ]] 
 	then
-		echo "Only one compatible plugin was found: $ap_compatible_plugins" >&2
-		ap_plugin="$ap_compatible_plugins"
+		echo "Only one compatible plugin was found: $ap_i_select_plugin_arg" >&2
+		ap_plugin="$ap_i_select_plugin_arg"
 	fi
 	echo -n 'The following plugins were found:' >&2
-	printf " '%s'" "${ap_compatible_plugins[@]}" >&2
+	printf " '%s'" "${ap_i_select_plugin_arg[@]}" >&2
 	echo >&2
 	# keep asking for search terms until we find something
 	while true
@@ -443,11 +458,28 @@ function ap_i_select_plugin {
 		echo >&2
 		echo 'Enter the (partial) name of a plugin, or nothing for automatic selection' >&2
 		read -r ap_search_term
-		search_compatible_plugins "$ap_search_term" && break
+		if [[ -z $ap_search_term ]]
+		then
+			ap_i_select_plugin_return="$ap_i_select_plugin_arg"
+			break
+		fi
+		ap_search_plugins_arg=("${ap_i_select_plugin_arg[@]}")
+		ap_search_plugins "$ap_search_term"
+		if [[ ${#ap_search_plugins_return[@]} -gt 1 ]]
+		then
+			echo -n 'Multiple plugins matched that search, try again:' >&2
+			printf " '%s'" "${ap_search_plugins_return[@]}" >&2
+		elif [[ ${#ap_search_plugins_return[@]} == 0 ]]
+		then
+			echo 'No plugins matched that search, try again.' >&2
+		else
+			ap_i_select_plugin_return="$ap_search_plugins_return"
+			break
+		fi
 	done
 }
 
-#shellcheck disable=2016
+# shellcheck disable=2016
 ap_help='
 Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
 
@@ -522,7 +554,7 @@ ap_args=("${ap_args[@]}")
 # the - is so that it ignores long options without error
 # Shellcheck actually checks specifically for getopts options in the case. How cool is that?
 # shellcheck disable=2213
-while getopts 'C-vxfhsip:c:n:' ap_opt "${ap_args[@]}"
+while getopts 'C-vxfthsip:c:n:' ap_opt "${ap_args[@]}"
 do
 	# shellcheck disable=2220
 	case $ap_opt in
@@ -547,6 +579,9 @@ do
 		;;
 	C)
 		ap_C='true';
+		;;
+	t)
+		ap_t="$OPTARG"
 		;;
 	v)
 		echo "Anypaste $ap_version"
@@ -617,7 +652,7 @@ CFG
 	ap_exit
 fi
 
-export PATH="$HOME/.anypaste-plugins:$PATH"
+PATH="$HOME/.anypaste-plugins:$PATH"
 
 # LOAD AND CHECK CONFIGURATION
 
@@ -633,31 +668,9 @@ source "$ap_cfg" 2> /dev/null
 
 [[ ${#ap_plugins[@]} == 0 ]] && echo 'No plugins listed in config!' && ap_exit 100
 
+ap_hook_policy="${ap_hook_policy:-lazy}"
 $ap_copy && ap_hooks+=('ap_copy_hook')
 $ap_notify && ap_hooks+=('ap_notify_hook')
-
-# CHECK CONFIGURATION PARAMETERS FUNCTION
-
-function check_eligibility {
-	command -v "$ap_plugin" > /dev/null || { echo "WARNING: Plugin $ap_plugin could not be found! You may need to check your config file." >&2 && return 1; }
-	$ap_plugin check_eligibility || return 1
-	missing_configs=()
-	for cur_req_config in $($ap_plugin get_required_config)
-	do
-		if [[ -z "${!cur_req_config}" ]]
-		then
-			missing_configs+=("$cur_req_config")
-		fi
-	done
-	if [[ ${#missing_configs[@]} -gt 0 ]]
-	then
-		echo -n "Plugin '$ap_plugin' is compatible, but missing config parameters:" >&2
-		printf " '%s'" "${missing_configs[@]}" >&2
-		echo >&2
-		echo "You can set them in $ap_cfg" >&2
-		return 1
-	fi
-}
 
 function run_hooks {
 	for i in "${ap_hooks[@]}"
@@ -668,7 +681,6 @@ function run_hooks {
 
 function upload_plugin {
 	echo "Attempting to upload with plugin '$ap_plugin'" >&2
-	export ap_last_stdout
 	if $ap_plugin upload | tee /tmp/ap_stdout_cache
 	then
 		ap_last_stdout=$(</tmp/ap_stdout_cache)
@@ -683,14 +695,33 @@ function upload_plugin {
 
 # LOOP THROUGH PLUGINS
 
-# args: whether to check compatibility
-function find_plugins {
-	$1 && ap_compatible_plugins=("${ap_plugins[@]}") && return
-	ap_compatible_plugins=()
-	for ap_plugin in "${ap_plugins[@]}"
+# does *not* take arguments, operates on ap_local_plugins
+function ap_filter_local_plugins {
+	ap_filter_plugins_return=()
+	for ap_plugin in "${ap_local_plugins[@]}"
 	do
-		check_eligibility && ap_compatible_plugins+=("$ap_plugin")
+		command -v "$ap_plugin" > /dev/null || { echo "WARNING: Plugin $ap_plugin could not be found! You may need to check your config file." >&2 && continue; }
+		"$ap_plugin" check_eligibility || continue
+		# TODO: new required config system
+#		missing_configs=()
+#		for cur_req_config in ''
+#		do
+#			if [[ -z "${!cur_req_config}" ]]
+#			then
+#				missing_configs+=("$cur_req_config")
+#			fi
+#		done
+#		if [[ ${#missing_configs[@]} -gt 0 ]]
+#		then
+#			echo -n "Plugin '$ap_plugin' is compatible, but missing config parameters:" >&2
+#			printf " '%s'" "${missing_configs[@]}" >&2
+#			echo >&2
+#			echo "You can set them in $ap_cfg" >&2
+#			continue
+#		fi
+		ap_filter_plugins_return+=("$ap_plugin")
 	done
+	ap_local_plugins=("${ap_filter_plugins_return[@]}")
 }
 
 function upload_loop {
@@ -698,50 +729,64 @@ function upload_loop {
 	if $ap_i
 	then
 		# INTERACTIVE
-		ap_i_yn 'Determine compatible plugins automatically?' && ap_skip_compat='false' || ap_skip_compat='true'
-		find_plugins $ap_skip_compat
+		ap_i_yn 'Determine compatible plugins automatically?' && \
+			ap_filter_local_plugins
 		# keep looping and selecting plugins, removing the previously attempted plugin each time, until we succeed
 		# or there are none left
 		while true
 		do
+			ap_i_select_plugin_arg=("${ap_local_plugins[@]}")
 			ap_i_select_plugin || return 1
+			ap_plugin="$ap_i_select_plugin_return"
 			ap_i_yn "Attempt to upload with plugin '$ap_plugin'?" >&2 || continue
 			upload_plugin && break
 			# we have to use unset to remove the selected one, but it only
 			# takes an index :(
-			for i in "${!ap_compatible_plugins[@]}"
+			for i in "${!ap_local_plugins[@]}"
 			do
-				if [[ ${ap_compatible_plugins[$i]} == "$ap_plugin" ]]
+				if [[ ${ap_local_plugins[$i]} == "$ap_plugin" ]]
 				then
-					unset "ap_compatible_plugins[$i]"
-					ap_compatible_plugins=("${ap_compatible_plugins[@]}")
+					unset "ap_local_plugins[$i]"
+					ap_local_plugins=("${ap_local_plugins[@]}")
 					break
 				fi
 			done
 		done
 	else
 		# NON-INTERACTIVE
-		if [[ -n "$ap_p" ]]
-		then
-			find_plugins "$ap_f"
-			search_compatible_plugins "$ap_p" || return 1
+		$ap_f || ap_filter_local_plugins
+		for ap_plugin in "${ap_local_plugins[@]}"
+		do
 			upload_plugin && return
-		else
-			find_plugins "$ap_f"
-			for ap_plugin in "${ap_compatible_plugins[@]}"
-			do
-				upload_plugin && return
-			done
-			echo 'No compatible plugins found, or all compatible plugins failed.' >&2
-			return 1
-		fi
+		done
+		echo 'No compatible plugins found, or all compatible plugins failed.' >&2
+		return 1
 	fi
 }
 
-function ap_rand_tmp {
-	ap_rand_str=$(head -c 20 /dev/urandom | base64 | tr -dc 0-9A-Za-z)
-	echo "/tmp/anypaste-$ap_rand_str"
-}
+# Filter plugins by cli options
+ap_global_plugins=("${ap_plugins[@]}")
+if [[ -n $ap_p ]]
+then
+	ap_search_plugins_arg=("${ap_plugins[@]}")
+	ap_search_plugins "$ap_p"
+	ap_global_plugins=("${ap_search_plugins_return[@]}")
+fi
+if [[ -n $ap_t ]]
+then
+	IFS=',' read -ra ap_tags <<< "$ap_t"
+	for ap_plugin_index in "${!ap_global_plugins[@]}"
+	do
+		for ap_tag in "${ap_tags[@]}"
+		do
+			ap_check_tag "${ap_global_plugins[$ap_plugin_index]}" "$ap_tag" || unset "ap_global_plugins[$ap_plugin_index]"
+		done
+	done
+	# unsparsify, for good luck
+	# TODO: maybe remove
+	ap_global_plugins=("${ap_global_plugins[@]}")
+fi
+
 ap_found_stdin='false'
 # NO FILES SPECIFIED
 if [[ ${#ap_args[@]} == 0 ]]
@@ -781,8 +826,7 @@ do
 			echo 'Stdin specified, but stdin is a terminal!' >&2
 			continue
 		fi
-		ap_path=$(ap_rand_tmp)
-		ap_tmp_files+=("$ap_path")
+		ap_path="/tmp/anypaste-$RANDOM"
 		cat > "$ap_path"
 		ap_found_stdin='true'
 	# NOT READABLE
@@ -797,8 +841,7 @@ do
 	elif [[ -d "$ap_user_path" ]]
 	then
 		echo "$ap_user_path is a directory, creating tarball..." >&2
-		ap_path="$(ap_rand_tmp).tar.gz"
-		ap_tmp_files+=("$ap_path")
+		ap_path="/tmp/anypaste-$RANDOM.tar.gz"
 		tar czf "$ap_path" -C "$ap_user_path" .
 	# NOTHING SPECIAL
 	else
@@ -809,11 +852,11 @@ do
 		ap_path="$PWD/$ap_basename"
 		popd >/dev/null || ap_exit 1
 	fi
-	export ap_path
+	ap_local_plugins=("${ap_global_plugins[@]}")
 	ap_mime=$(file --mime-type --brief "$ap_path")
-	export ap_mime
 	# TODO: maybe don't call it human name? confusing with user name
-	export ap_human_name=${ap_human_name:-$(basename "$ap_path")}
+	ap_human_name=${ap_human_name:-$(basename "$ap_path")}
+	ap_size=$(wc -c < "$ap_path")
 	if upload_loop
 	then
 		ap_ok_uls+=("$ap_user_path")
@@ -824,10 +867,10 @@ do
 done
 
 # SUMMARY if multiple files uploaded
-if [[ $((${#ap_ok_uls[@]} + ${#ap_fail_uls[@]})) -gt 1 ]]
+if [[ $((${#ap_ok_uls[@]} + ${#ap_fail_uls[@]})) -gt 0 ]]
 then
 	# SUCCESSES
-	echo -en '\nSucessfully uploaded:' >&2
+	echo -en 'Sucessfully uploaded:' >&2
 	if [[ ${#ap_ok_uls[@]} -gt 0 ]]
 	then
 		printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
