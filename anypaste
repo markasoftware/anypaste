@@ -6,14 +6,7 @@
 
 # shellcheck disable=2128
 
-export ap_version
-export ap_mac
-export ap_path
-export ap_human_name
-export ap_mime
-export ap_size
-export ap_plugin
-export ap_last_stdout
+export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
 ap_version='1.0.3'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 
@@ -50,7 +43,7 @@ function json_parse {
 function ixio {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime == text/* ]]
+		[[ $ap_mime == text/* ]] && check_size 1000000
 		;;
 	upload)
 		ixio_link=$(curl_form_upload 'f:1' ix.io) || return 1
@@ -64,7 +57,7 @@ function ixio {
 function hastebin {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime == text/* ]]
+		[[ $ap_mime == text/* ]] && check_size 400000
 		;;
 	upload)
 		hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
@@ -187,8 +180,8 @@ function instaudio {
 function clyp {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] || return 1
-		check_size 5000000
+		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] && \
+			check_size 5000000
 		;;
 	upload)
 		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
@@ -508,6 +501,64 @@ function ap_i_select_plugin {
 	done
 }
 
+# @param $1: char to repeat
+# @param $2: number of times to repeat it
+# @return $ap_repeat_char_return: repeated string
+function ap_repeat_char {
+	ap_repeat_char_return=
+	for ((i=0; i<$2; i++))
+	do
+		ap_repeat_char_return="${ap_repeat_char_return}$1"
+	done
+}
+
+# sets variables related to table printing
+# ap_list_[ncs] are the top, middle, and bottom of items
+function ap_list_init {
+	local hr_body
+	ap_width=$(tput cols)
+	[[ $ap_width -lt 80 ]] && ap_width=80
+	[[ $ap_width -gt 140 ]] && ap_width=140
+	if $ap_unicode
+	then
+		ap_list_h_char='─'
+		ap_list_v_char='│'
+	else
+		ap_list_h_char='-'
+		ap_list_v_char='|'
+	fi
+	# we can't use the printf %.0s trick because it doesn't work when the character is '-'
+	ap_repeat_char "$ap_list_h_char" $((ap_width-2))
+	hr_body="$ap_repeat_char_return"
+	if $ap_unicode
+	then
+		ap_list_n="┌${hr_body}┐"
+		ap_list_c="├${hr_body}┤"
+		ap_list_s="└${hr_body}┘"
+	else
+		{ap_list_n,ap_list_c,ap_list_s}="+$hr_body+"
+	fi
+}
+
+# prints text, properly wrapping and all
+# @param $1: text to be put inside
+function ap_list_text {
+	local to_print pad_str pad_size text_width
+	pad_size=1
+	ap_repeat_char ' ' "$pad_size"
+	pad_str="$ap_repeat_char_return"
+	text_width=$((ap_width-2-pad_size*2))
+	echo -n "$1" | fold -w "$text_width" | while IFS= read -r line
+	do
+		if [[ ${#line} -lt $text_width ]]
+		then
+			ap_repeat_char ' ' $((text_width-${#line}))
+			line="${line}${ap_repeat_char_return}"
+		fi
+		echo "${ap_list_v_char}${pad_str}${line}${pad_str}${ap_list_v_char}"
+	done 
+}
+
 # shellcheck disable=2016
 ap_help='
 Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
@@ -685,11 +736,13 @@ PATH="$HOME/.anypaste-plugins:$PATH"
 
 # LOAD AND CHECK CONFIGURATION
 
-# default plugins
+# DEFAULT CONFIG
 ap_plugins=(
 	'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 )
 ap_hooks=()
+ap_hook_policy='lazy'
+ap_unicode='true'
 
 # this could fail if no config file, hence why 2> /dev/null
 # shellcheck disable=1090
@@ -697,7 +750,6 @@ source "$ap_cfg" 2> /dev/null
 
 [[ ${#ap_plugins[@]} == 0 ]] && echo 'No plugins listed in config!' && ap_exit 100
 
-ap_hook_policy="${ap_hook_policy:-lazy}"
 $ap_copy && ap_hooks+=('ap_copy_hook')
 $ap_notify && ap_hooks+=('ap_notify_hook')
 
