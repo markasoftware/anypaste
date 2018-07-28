@@ -402,20 +402,49 @@ function ap_exit {
 	exit "$@"
 }
 
-declare -A ap_memoize_codes
-declare -A ap_memoize_stdouts
-function ap_memoize {
-	# TODO: switch more stuff over to `local`
-	local IFS='|'
-	local memoize_key="$*"
-	if [[ -n "${ap_memoize_codes[$memoize_key]}" ]]
+# note: make sure the plugin exists first (i.e, run it after filter_plugins)
+# @param $1: Name of the plugin
+# @param $2: Name of the section
+# @exit: 1 if that section does not exist, 0 if it does
+# @return $ap_get_section_return: the raw section contents
+# ap_sections has keys plugin_name|property_name, and values are the raw contents
+declare -A ap_sections
+function ap_get_section {
+	local requested_key="$1|$2"
+	if [[ -z ${ap_sections[$requested_key]} ]]
 	then
-		echo -n "${ap_memoize_stdouts[$memoize_key]}"
-		return "${ap_memoize_codes[$memoize_key]}"
-	else
-		ap_memoize_stdouts[$memoize_key]=$("$@")
-		ap_memoize_codes[$memoize_key]="$?"
+		# http://mywiki.wooledge.org/BashFAQ/024
+		# in other words, we can't use the loop in a pipeline like we "should" because
+		# it will start a subshell, and we won't be able to get the variables out
+		# however, we *can* use file redirection. Srsly?
+		local section
+		local buffer
+		local current_key
+		"$1" get_info > /tmp/ap_get_info
+		# we need a "fake" section at the end so that it flushes the final buffer
+		echo '[dummy]' >> /tmp/ap_get_info
+		while IFS= read -r line
+		do
+			# skip empty lines
+			[[ -z $line ]] && continue
+
+			# parse section headers
+			if [[ $line =~ \[.*\] ]]
+			then
+				current_key="$1|$section"
+				ap_sections[$current_key]="$buffer"
+				buffer=
+				section="${line//[\[\]]/}"
+				continue
+			fi
+
+			# section body
+			buffer="${buffer}${line}
+"
+		done < /tmp/ap_get_info
 	fi
+	ap_get_section_return="${ap_sections[$requested_key]}"
+	[[ -n ${ap_sections[$requested_key]} ]] && return 0 || return 1
 }
 
 # Y is always default. Word your questions better. Be positive!
