@@ -217,8 +217,8 @@ function imgur {
 		echo 'private'
 		echo 'editable'
 		echo 'deletable'
-		echo '[optional_config]'
-		echo 'imgur_client_id|c7e65b324a5ebe8|Your Imgur API client ID. Your secret key is not needed, yay!'
+		echo '[config]'
+		echo 'optional|imgur_client_id|Your Imgur API client ID. Your secret key is not needed, yay! Default: c7e65b324a5ebe8'
 		;;
 	esac
 }
@@ -301,9 +301,9 @@ function streamable {
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
-		echo '[required_config]'
-		echo 'streamable_email|None|Account email address'
-		echo 'streamable_password|None|Account password'
+		echo '[config]'
+		echo 'required|streamable_email|Account email address.'
+		echo 'required|streamable_password|Account password.'
 		;;
 	esac
 }
@@ -329,7 +329,7 @@ function sendvid {
 		echo '[name]'
 		echo 'Sendvid'
 		echo '[description]'
-		echo 'Video host. Transcodes for all platforms'
+		echo 'Video host. Transcodes for all platforms.'
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
@@ -438,8 +438,8 @@ function docdroid {
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
-		echo '[required_config]'
-		echo 'docdroid_access_token|None|Your Docdroid API key. Must have upload scope enabled'
+		echo '[config]'
+		echo 'required|docdroid_access_token|Your Docdroid API key. Must have upload scope enabled.'
 	esac
 }
 
@@ -465,8 +465,8 @@ function pomf {
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
-		echo '[optional_config]'
-		echo 'pomf_upload_url|https://dmca.gripe/api/upload|The path to the upload URL on your pomf host of choice.'
+		echo '[config]'
+		echo 'optional|pomf_upload_url|The path to the upload URL on your pomf host of choice. Default: https://dmca.gripe/api/upload'
 	esac
 }
 
@@ -678,12 +678,13 @@ function ap_list_init {
 # prints text, properly wrapping and all
 # @param $1: text to be put inside
 function ap_list_text {
-	local to_print pad_str pad_size text_width
+	local pad_str pad_size text_width line
 	pad_size=1
 	ap_repeat_char ' ' "$pad_size"
 	pad_str="$ap_repeat_char_return"
 	text_width=$((ap_width-2-pad_size*2))
-	echo -n "$1" | fold -w "$text_width" | while IFS= read -r line
+
+	echo -n "${1%$'\n'}"$'\n' | fold -w "$text_width" | while IFS= read -r line
 	do
 		if [[ ${#line} -lt $text_width ]]
 		then
@@ -697,7 +698,7 @@ function ap_list_text {
 # @param $ap_list_arg: see ap_list
 # @param $1: whether to do "raw" output or not.
 function ap_list_inner {
-	local tags
+	local tags config_parts line
 	ap_list_init
 	for ap_plugin in "${ap_list_arg[@]}"
 	do
@@ -715,6 +716,7 @@ function ap_list_inner {
 		ap_get_section "$ap_plugin" 'description'
 		ap_list_text "Description:
 $ap_get_section_return"
+
 		ap_get_section "$ap_plugin" 'tags'
 		if [[ -n $ap_get_section_return ]]
 		then
@@ -722,9 +724,23 @@ $ap_get_section_return"
 			tags=$(echo -n "$ap_get_section_return" | tr '
 ' ',')
 			# make sure to apply trailing newline that was removed above
-			ap_list_text "Tags: ${tags%%,}
-"
+			ap_list_text "Tags: ${tags%%,}"
 		fi
+
+		ap_get_section "$ap_plugin" 'config'
+		if [[ -n "$ap_get_section_return" ]]
+		then
+			echo "$ap_list_c"
+			ap_list_text "Configuration options:"
+			# conveniently, required recommended optional is reverse alphabetical order
+			echo -n "$ap_get_section_return" | sort -srt '|' -k 1,1 | while read -r line
+			do
+				# [0]=opt/rec/req [1]=name [2]=description
+				IFS='|' read -ra config_parts <<< "$line"
+				ap_list_text "(${config_parts[0]}) ${config_parts[1]}: ${config_parts[2]}"
+			done
+		fi
+
 		echo "$ap_list_s"
 		echo
 	done
@@ -817,7 +833,6 @@ do
 		'--list') ap_list='true';;
 		'--list-raw')
 			ap_list='true'
-			ap_list_raw='true'
 			;;
 		*) ap_found_long_opt='false';;
 	esac
@@ -981,11 +996,35 @@ function upload_plugin {
 
 # does *not* take arguments, operates on ap_local_plugins
 function ap_filter_local_plugins {
+	local line config_parts config_var_name
 	ap_filter_plugins_return=()
 	for ap_plugin in "${ap_local_plugins[@]}"
 	do
 		command -v "$ap_plugin" > /dev/null || { echo "WARNING: Plugin $ap_plugin could not be found! You may need to check your config file." >&2 && continue; }
 		"$ap_plugin" check_eligibility || continue
+		if ap_get_section "$ap_plugin" 'config'
+		then
+			while read -r line
+			do
+				IFS='|' read -ra config_parts <<< "$line"
+				config_var_name="${config_parts[1]}"
+				if [[ -n $line && -z ${!config_var_name} ]]
+				then
+					case "${config_parts[0]}" in
+					"required")
+						echo "Missing required config option for '$ap_plugin': '$config_var_name'" >&2
+						echo "Run 'anypaste -p $ap_plugin -l' to see more information about this plugin." >&2
+						# aaaahhahah
+						continue 2
+						;;
+					"recommended")
+						echo "Missing recommended config option for '$ap_plugin': '$config_var_name' -- continuing anyway" >&2
+						echo "Run 'anypaste -p $ap_plugin -l' to see more information about this plugin." >&2
+						;;
+					esac
+				fi
+			done <<< "$ap_get_section_return"
+		fi
 		# TODO: new required config system
 #		missing_configs=()
 #		for cur_req_config in ''
