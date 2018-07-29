@@ -51,6 +51,14 @@ function ixio {
 		echo "Direct: $ixio_link"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'ix.io'
+		echo '[description]'
+		echo 'Simple plain-text host with direct links only.'
+		echo '[tags]'
+		echo 'permanent'
+		;;
 	esac
 }
 
@@ -67,6 +75,15 @@ function hastebin {
 		echo "Link: https://hastebin.com/$hastebin_id"
 		echo "Direct: https://hastebin.com/raw/$hastebin_id"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Hastebin'
+		echo '[description]'
+		echo 'Plain-text host with syntax highlighting and forking.'
+		echo '[tags]'
+		echo 'private'
+		;;
 	esac
 }
 
@@ -82,6 +99,14 @@ function fileio {
 		echo >&2
 		echo "Direct: $fileio_link"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'file.io'
+		echo '[description]'
+		echo 'Snapchat for files: They are deleted after their first view. Generic; direct-links only'
+		echo '[tags]'
+		echo 'private'
 		;;
 	esac
 }
@@ -99,6 +124,14 @@ function transfersh {
 		echo >&2
 		echo "Direct: $transfersh_link"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'transfer.sh'
+		echo '[description]'
+		echo 'Generic-file host with a popular, official CLI client. No ads.'
+		echo '[tags]'
+		echo 'private'
 		;;
 	esac
 }
@@ -120,6 +153,16 @@ function vgyme {
 		echo "Delete: $vgyme_delete"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'vgy.me'
+		echo '[description]'
+		echo 'Image host, supports direct links and some editing.'
+		echo '[tags]'
+		echo 'private'
+		echo 'editable'
+		echo 'deletable'
+		;;
 	esac
 }
 
@@ -134,6 +177,14 @@ function tinyimg {
 		echo >&2
 		echo "Direct: https://tinyimg.io/i/$tinyimg_filename"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Tinyimg'
+		echo '[description]'
+		echo 'Image host, super simple, direct links only.'
+		echo '[tags]'
+		echo 'private'
 		;;
 	esac
 }
@@ -156,6 +207,19 @@ function imgur {
 		echo "Edit: https://imgur.com/edit?deletehash=$imgur_deletehash"
 		echo "Delete: https://imgur.com/delete/$imgur_deletehash"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Imgur'
+		echo '[description]'
+		echo 'The most popular image host in the world. We had to hard-code an API key, but it has rate limits. Use your own key if you plan to upload a lot, please!'
+		echo '[tags]'
+		echo 'private'
+		echo 'editable'
+		echo 'deletable'
+		echo '[optional_config]'
+		echo 'imgur_client_id|c7e65b324a5ebe8|Your Imgur API client ID. Your secret key is not needed, yay!'
+		;;
 	esac
 }
 
@@ -173,6 +237,14 @@ function instaudio {
 		echo "Link: https://instaud.io$inst_redirect"
 		echo "Direct: https://instaud.io/_$inst_redirect.$ap_ext"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'instaud.io'
+		echo '[description]'
+		echo 'Audio host. Shows a nice waveform of the file when playing it back.'
+		echo '[tags]'
+		echo 'permanent'
 		;;
 	esac
 }
@@ -192,6 +264,14 @@ function clyp {
 		echo "Link: $clyp_link"
 		echo "Direct: $clyp_mp3_direct_link"
 		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'clyp.it'
+		echo '[description]'
+		echo 'Mediocre audio host. Not sure why I added it; there is limited selection in audio hosts.'
+		echo '[tags]'
+		echo 'permanent'
 		;;
 	esac
 }
@@ -213,6 +293,18 @@ function streamable {
 		echo "Link: https://streamable.com/$streamable_shortcode"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'Streamable'
+		echo '[description]'
+		echo 'Video host. Very popular, transcodes for all platforms. Requires authentication (user/password, not API key).'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo '[required_config]'
+		echo 'streamable_email|None|Account email address'
+		echo 'streamable_password|None|Account password'
+		;;
 	esac
 }
 
@@ -233,69 +325,90 @@ function sendvid {
 		echo "Delete/Edit: https://sendvid.com/$sendvid_pub?secret=$sendvid_priv"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'Sendvid'
+		echo '[description]'
+		echo 'Video host. Transcodes for all platforms'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo 'editable'
+		echo 'deletable'
+		;;
 	esac
 }
 
 function gfycat {
 	case $1 in
-		check_eligibility)
-			# I'm not sure why shellcheck is angry about this
-			# shellcheck disable=2140
-			[[ $ap_mime =~ "video/"|"image/gif" ]]
-			;;
-		upload)
-			# this is one of the more complex ones
-			# get the key/name of the gfy
-			# shellcheck disable=2154
-			if [[ -n "$gfycat_duplicates" ]]
-			then
-				gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
-					echo 'Getting gfycat key did not return HTTP 200!' >&2
+	check_eligibility)
+		# I'm not sure why shellcheck is angry about this
+		# shellcheck disable=2140
+		[[ $ap_mime =~ "video/"|"image/gif" ]]
+		;;
+	upload)
+		# this is one of the more complex ones
+		# get the key/name of the gfy
+		# shellcheck disable=2154
+		if [[ -n "$gfycat_duplicates" ]]
+		then
+			gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
+				echo 'Getting gfycat key did not return HTTP 200!' >&2
+				return 1;
+			}
+		else
+			gfy_init_json=$(curl -sfXPOST -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
+				echo 'Getting gfycat key did not return HTTP 200!' >&2
+				return 1;
+			}
+		fi
+		gfy_name=$(json_parse "$gfy_init_json" 'gfyname')
+		# the file being uploaded must have the same name as the key
+		# since i don't know how to set it using curl options, I'm
+		# just using a symbolic link with the correct name.
+		ln -s "$ap_path" "/tmp/$gfy_name"
+		curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
+		rm -f "/tmp/$gfy_name"
+		if [[ -n "$gfycat_duplicates" ]]
+		then
+			# We have to wait for encoding (unlike with streamable) because
+			# during encoding, if it has the same hash as another gfy, it
+			# returns the (different) link to the original gfy, and the new
+			# one won't work. It's possible to override this to upload with
+			# the new URL regardless, but i don't need to use up extra space
+			# on the gfycat servers.
+			echo 'Waiting for remote encoding to complete...' >&2
+			while true
+			do
+				sleep 4
+				gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
+					echo 'Status check request did not return HTTP 200!' >&2
+					echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
 					return 1;
 				}
-			else
-				gfy_init_json=$(curl -sfXPOST -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
-					echo 'Getting gfycat key did not return HTTP 200!' >&2
-					return 1;
-				}
-			fi
-			gfy_name=$(json_parse "$gfy_init_json" 'gfyname')
-			# the file being uploaded must have the same name as the key
-			# since i don't know how to set it using curl options, I'm
-			# just using a symbolic link with the correct name.
-			ln -s "$ap_path" "/tmp/$gfy_name"
-			curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
-			rm -f "/tmp/$gfy_name"
-			if [[ -n "$gfycat_duplicates" ]]
-			then
-				# We have to wait for encoding (unlike with streamable) because
-				# during encoding, if it has the same hash as another gfy, it
-				# returns the (different) link to the original gfy, and the new
-				# one won't work. It's possible to override this to upload with
-				# the new URL regardless, but i don't need to use up extra space
-				# on the gfycat servers.
-				echo 'Waiting for remote encoding to complete...' >&2
-				while true
-				do
-					sleep 4
-					gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
-						echo 'Status check request did not return HTTP 200!' >&2
-						echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
-						return 1;
-					}
-					[[ $gfy_status == *complete* ]] && break
-				done
-				[[ $gfy_status == *gfyName* ]] && \
-					gfy_final_name=$(json_parse "$gfy_status" 'gfyName') || \
-					gfy_final_name=$(json_parse "$gfy_status" 'gfyname')
-			else
-				gfy_final_name="$gfy_name"
-				echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.' >&2
-			fi
-			echo >&2
-			echo "Link: https://gfycat.com/$gfy_final_name"
-			echo "Direct: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
-			echo
+				[[ $gfy_status == *complete* ]] && break
+			done
+			[[ $gfy_status == *gfyName* ]] && \
+				gfy_final_name=$(json_parse "$gfy_status" 'gfyName') || \
+				gfy_final_name=$(json_parse "$gfy_status" 'gfyname')
+		else
+			gfy_final_name="$gfy_name"
+			echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.' >&2
+		fi
+		echo >&2
+		echo "Link: https://gfycat.com/$gfy_final_name"
+		echo "Direct: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
+		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Gfycat'
+		echo '[description]'
+		echo 'Video/Gif host. Started out as a gif-to-mp4 kind of thing, so it strips out audio. Otherwise great!'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		;;
 	esac
 }
 
@@ -317,6 +430,16 @@ function docdroid {
 		echo "Direct: https://www.docdroid.net/file/download/$docdroid_id/$docdroid_filename"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'Docdroid'
+		echo '[description]'
+		echo 'Weird document host, not much of an advantage over any generic direct host. Requires authentication.'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo '[required_config]'
+		echo 'docdroid_access_token|None|Your Docdroid API key. Must have upload scope enabled'
 	esac
 }
 
@@ -334,6 +457,16 @@ function pomf {
 		echo "Direct: $pomf_link"
 		echo
 		;;
+	get_info)
+		echo '[name]'
+		echo 'Pomf'
+		echo '[description]'
+		echo 'Pomf is an open-source generic upload host, github.com/pomf/pomf. Many "pomf" sites actually are incompatible with the real pomf, so make sure you use one that does. dmca.gripe is used by default.'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo '[optional_config]'
+		echo 'pomf_upload_url|https://dmca.gripe/api/upload|The path to the upload URL on your pomf host of choice.'
 	esac
 }
 
@@ -536,7 +669,9 @@ function ap_list_init {
 		ap_list_c="├${hr_body}┤"
 		ap_list_s="└${hr_body}┘"
 	else
-		{ap_list_n,ap_list_c,ap_list_s}="+$hr_body+"
+		ap_list_n="/$hr_body\\"
+		ap_list_c="|$hr_body|"
+		ap_list_s="\\$hr_body/"
 	fi
 }
 
@@ -556,7 +691,54 @@ function ap_list_text {
 			line="${line}${ap_repeat_char_return}"
 		fi
 		echo "${ap_list_v_char}${pad_str}${line}${pad_str}${ap_list_v_char}"
-	done 
+	done
+}
+
+# @param $ap_list_arg: see ap_list
+# @param $1: whether to do "raw" output or not.
+function ap_list_inner {
+	local tags
+	ap_list_init
+	for ap_plugin in "${ap_list_arg[@]}"
+	do
+		# no && here, get_info might fail
+		if $1
+		then
+			"$ap_plugin" get_info
+			echo
+			continue
+		fi
+		echo "$ap_list_n"
+		ap_get_section "$ap_plugin" 'name'
+		ap_list_text "$ap_get_section_return"
+		echo "$ap_list_c"
+		ap_get_section "$ap_plugin" 'description'
+		ap_list_text "Description:
+$ap_get_section_return"
+		ap_get_section "$ap_plugin" 'tags'
+		if [[ -n $ap_get_section_return ]]
+		then
+			echo "$ap_list_c"
+			tags=$(echo -n "$ap_get_section_return" | tr '
+' ',')
+			# make sure to apply trailing newline that was removed above
+			ap_list_text "Tags: ${tags%%,}
+"
+		fi
+		echo "$ap_list_s"
+		echo
+	done
+	ap_exit
+}
+# @param $ap_list_arg: Array of plugin names to list
+function ap_list {
+	if [[ -t 1 ]]
+	then
+		ap_list_inner 'false'| less
+	else
+		ap_list_inner 'true'
+	fi
+	ap_exit
 }
 
 # shellcheck disable=2016
@@ -576,8 +758,16 @@ OPTIONS:
  -p          Specify a plugin instead of automatic selection. Uses fuzzy
              matching (e.g, `gfy` search will match `gfycat` plugin).
              Only searches compatible plugins by default.
+ -t          Specify required "tags" for plugins, comma separated. You
+             can use -l to see what tags plugins have.
  -n          Specify the name that will be displayed on the site. Not
              universally supported. Defaults to file basename.
+ -l, --list  List all installed plugins, and some metadata about each.
+             This works in combination with other filtering things; for
+             example you can do `anypaste -l myfile.png` to list plugins
+             compatible with myfile.png. Will echo raw get_info output
+             from each plugin if stdout is not a terminal, cannot be
+             overridden :(
  -s          Silence everything but links (equivalent to 2>/dev/null)
  -c          Use the specified configuration file instead of the default
              one located at $XDG_CONFIG_HOME/anypaste.conf
@@ -605,6 +795,7 @@ ap_p=""
 ap_cfg=""
 ap_copy='false'
 ap_notify='false'
+ap_list='false'
 
 ap_args=("$@")
 
@@ -621,9 +812,14 @@ do
 			echo "Anypaste $ap_version"
 			ap_exit
 			;;
-		'--copy') ap_copy=true;;
-		'--notify') ap_notify=true;;
-		*) ap_found_long_opt=false;;
+		'--copy') ap_copy='true';;
+		'--notify') ap_notify='true';;
+		'--list') ap_list='true';;
+		'--list-raw')
+			ap_list='true'
+			ap_list_raw='true'
+			;;
+		*) ap_found_long_opt='false';;
 	esac
 	$ap_found_long_opt && unset "ap_args[$i]"
 done
@@ -634,7 +830,7 @@ ap_args=("${ap_args[@]}")
 # the - is so that it ignores long options without error
 # Shellcheck actually checks specifically for getopts options in the case. How cool is that?
 # shellcheck disable=2213
-while getopts 'C-vxfthsip:c:n:' ap_opt "${ap_args[@]}"
+while getopts 'C-vlxfhsip:c:n:t:' ap_opt "${ap_args[@]}"
 do
 	# shellcheck disable=2220
 	case $ap_opt in
@@ -662,6 +858,9 @@ do
 		;;
 	t)
 		ap_t="$OPTARG"
+		;;
+	l)
+		ap_list='true'
 		;;
 	v)
 		echo "Anypaste $ap_version"
@@ -719,7 +918,7 @@ then
 # Set both of these to a real account to enable the streamable plugin
 # export streamable_email=mark@example.com
 # export streamable_password=hunter2
-
+however, the ones
 # Create a docdroid.net account, go to settings, and create an API access token
 # export docdroid_access_token=928doebknb80fd38rduroenaudhoenkb283d8pf7230upf8rekb92
 
@@ -761,15 +960,19 @@ function run_hooks {
 }
 
 function upload_plugin {
+	local plugin_exit_code
 	echo "Attempting to upload with plugin '$ap_plugin'" >&2
-	if $ap_plugin upload | tee /tmp/ap_stdout_cache
+	# TODO: if we ever unit test things, make sure we fall back if a plugin fails
+	$ap_plugin upload | tee /tmp/ap_stdout_cache
+	plugin_exit_code=${PIPESTATUS[0]}
+	if [[ $plugin_exit_code == 0 ]]
 	then
 		ap_last_stdout=$(</tmp/ap_stdout_cache)
 		# shellcheck disable=2154
 		[[ $ap_hook_policy == greedy ]] && run_hooks
 		echo 'Upload complete.' >&2
 	else
-		echo "Plugin failed with error code $?" >&2
+		echo "Plugin failed with error code $plugin_exit_code" >&2
 		return 1 
 	fi
 }
@@ -836,6 +1039,11 @@ function upload_loop {
 	else
 		# NON-INTERACTIVE
 		$ap_f || ap_filter_local_plugins
+		if $ap_list
+		then
+			ap_list_arg=("${ap_local_plugins[@]}")
+			ap_list
+		fi
 		for ap_plugin in "${ap_local_plugins[@]}"
 		do
 			upload_plugin && return
@@ -858,9 +1066,10 @@ then
 	IFS=',' read -ra ap_tags <<< "$ap_t"
 	for ap_plugin_index in "${!ap_global_plugins[@]}"
 	do
+		ap_get_section "${ap_global_plugins[$ap_plugin_index]}" 'tags'
 		for ap_tag in "${ap_tags[@]}"
 		do
-			ap_check_tag "${ap_global_plugins[$ap_plugin_index]}" "$ap_tag" || unset "ap_global_plugins[$ap_plugin_index]"
+			[[ $ap_get_section_return == *$ap_tag* ]] || unset "ap_global_plugins[$ap_plugin_index]"
 		done
 	done
 	# unsparsify, for good luck
@@ -872,6 +1081,11 @@ ap_found_stdin='false'
 # NO FILES SPECIFIED
 if [[ ${#ap_args[@]} == 0 ]]
 then
+	if $ap_list
+	then
+		ap_list_arg=("${ap_global_plugins[@]}")
+		ap_list
+	fi
 	if [[ -t 0 ]]
 	then
 		echo 'ERROR: No files specified, and stdin is a terminal' >&2
@@ -935,7 +1149,6 @@ do
 	fi
 	ap_local_plugins=("${ap_global_plugins[@]}")
 	ap_mime=$(file --mime-type --brief "$ap_path")
-	# TODO: maybe don't call it human name? confusing with user name
 	ap_human_name=${ap_human_name:-$(basename "$ap_path")}
 	ap_size=$(wc -c < "$ap_path")
 	if upload_loop
@@ -954,8 +1167,10 @@ then
 	echo -en 'Sucessfully uploaded:' >&2
 	if [[ ${#ap_ok_uls[@]} -gt 0 ]]
 	then
-		printf " '%s'" "${ap_ok_uls[@]}" >&2 || echo -n ' None' >&2
+		printf " '%s'" "${ap_ok_uls[@]}" >&2
 		[[ $ap_hook_policy != greedy ]] && run_hooks
+	else
+		echo -n ' None' >&2
 	fi
 
 	echo >&2
