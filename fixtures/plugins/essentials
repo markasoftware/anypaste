@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+function essentials {
+	case "$1" in
+	check_eligibility)
+		echo 'essentials check_eligibility'
+		;;
+	upload)
+		echo 'essentials upload'
+		meow="$ap_human_name"
+		;;
+	get_info)
+		echo '[name]'
+		echo 'essentials'
+		echo '[description]'
+		echo 'essentials'
+		;;
+	esac
+}

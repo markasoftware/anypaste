@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+function weird_info {
+	# in case of upload and check_eligibility, we will just return true anyway
+	if [[ $1 == 'get_info' ]]
+	then
+		echo '[name]'
+		echo 'weird'
+		echo 'info'
+		echo '[description]'
+		echo 'I love brackets: [ ]'
+		echo '[tags]'
+		echo 'But not just'
+		echo
+		echo 'Brackets'
+	fi
+}
