@@ -15,7 +15,10 @@ Anypaste is just a shell script. It's hosted at `https://anypaste.xyz/sh`. A qui
 * `anypaste file.jpg`: Upload `file.jpg`, automatically selecting the plugin (standard usage).
 * `anypaste file.jpg file.m4v`: Upload multiple files, with automatic plugin selection for both.
 * `anypaste -p gfycat file.m4v`: Upload `file.m4v`; use a plugin containing `gfycat` in its name (manual plugin selection).
-* `anypaste -p gfycat something.tar.gz`: Upload `something.tar.gz` with `gfycat`, even though `gfycat` is not compatible (override compatibility checks).
+* `anypaste -l`: List all plugins/sites.
+* `anypaste -l file.m4v`: List all plugins/sites compatible with `file.m4v`.
+* `anypaste -t private launch-codes.txt`: Upload `launch-codes.txt` to a "private" site (URLs are not publicly listed).
+* `anypaste -f -p gfycat something.tar.gz`: Upload `something.tar.gz` with `gfycat`, even though `gfycat` is not compatible (override compatibility checks).
 * `anypaste some-directory`: Upload `some-directory`, a compressed tarball will automatically be created (`.tar.gz`)
 
 ## Website

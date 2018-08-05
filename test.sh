@@ -62,6 +62,43 @@ test_ap_get_section() {
 	assertEquals 'error when section does not exist' 1 $code
 }
 
+test_ap_filter_global_plugins() {
+	local ap_global_plugins ap_p ap_t
+	ap_global_plugins=('foo' 'bar')
+	ap_filter_global_plugins
+	assertEquals 'without options, do nothing' 'foo bar' "${ap_global_plugins[*]}"
+
+	ap_p='ar'
+	ap_global_plugins=('foo' 'bar')
+	ap_filter_global_plugins
+	assertEquals 'just -p' 'bar' "${ap_global_plugins[*]}"
+	ap_p=
+
+	ap_t='private'
+	ap_global_plugins=('essentials' 'taggy_1' 'weird_info')
+	ap_filter_global_plugins
+	assertEquals 'just -t' 'taggy_1' "${ap_global_plugins[*]}"
+	ap_t=
+
+	ap_t='private,permanent'
+	ap_global_plugins=('essentials' 'taggy_1' 'taggy_2' 'weird_info')
+	ap_filter_global_plugins
+	assertEquals 'just -t, multiple tags' 'taggy_2' "${ap_global_plugins[*]}"
+	ap_t=
+
+	ap_p='1'
+	ap_t='deletable'
+	ap_global_plugins=('essentials' 'weird_info' 'taggy_1' 'taggy_2')
+	ap_filter_global_plugins
+	assertEquals 'both -t and -p' 'taggy_1' "${ap_global_plugins[*]}"
+	ap_p=
+	ap_t=
+}
+
+test_ap_filter_local_plugins() {
+	local ap_local_plugins
+}
+
 ap_test='true'
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done

@@ -1,0 +1,13 @@
+function taggy_1 {
+	if [[ $1 == 'get_info' ]]
+	then
+		echo '[name]'
+		echo 'taggy_1'
+		echo '[description]'
+		echo 'has some tags'
+		echo '[tags]'
+		echo 'private'
+		echo 'editable'
+		echo 'deletable'
+	fi
+}

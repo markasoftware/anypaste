@@ -825,12 +825,14 @@ function ap_filter_local_plugins {
 }
 
 # filters ap_global_plugins in-place based on CLI options
+# @param $ap_global_plugins: Unfiltered plugin list
 # @param $ap_p: user-specified plugins search string
 # @param $ap_t: comma-separated list of required tags
+# @return $ap_global_plugins
 function ap_filter_global_plugins {
 	if [[ -n $ap_p ]]
 	then
-		ap_search_plugins_arg=("${ap_plugins[@]}")
+		ap_search_plugins_arg=("${ap_global_plugins[@]}")
 		ap_search_plugins "$ap_p"
 		ap_global_plugins=("${ap_search_plugins_return[@]}")
 	fi
