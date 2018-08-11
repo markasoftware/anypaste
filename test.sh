@@ -4,7 +4,7 @@ test_version() {
 	local out_v out_version exit_code
 	out_v=$(ap_main -v)
 	exit_code=$?
-	assertTrue 'printed a version' '[[ $out_v == Anypaste" "?.??(.?) ]]'
+	assertTrue 'printed a version' '[[ $out_v == Anypaste" "?.?.??(-*) ]]'
 	assertEquals 'exited sucessfully' 0 $exit_code
 	out_version=$(ap_main --version)
 	exit_code=$?
