@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 function taggy_1 {
 	if [[ $1 == 'get_info' ]]
 	then

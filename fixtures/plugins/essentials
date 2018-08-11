@@ -5,8 +5,8 @@ function essentials {
 		echo 'essentials check_eligibility'
 		;;
 	upload)
-		echo 'essentials upload'
-		meow="$ap_human_name"
+		echo "essentials upload $ap_human_name"
+		echo "essentials upload path $ap_path"
 		;;
 	get_info)
 		echo '[name]'

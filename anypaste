@@ -9,6 +9,7 @@
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
 ap_version_text="Anypaste 1.1"
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
+shopt -s extglob
 
 # BEGIN PLUGINS
 
@@ -31,11 +32,42 @@ function curl_file_upload {
 }
 
 # string json, string key -> string value
-# make sure no special chars in key, and key can't appear in json before it appears as a key
-# also make sure top_sekrit isn't in the input. Don't try this at home, kids!
+# make sure shopt -s extglob is on before using
+# not standards compliant in any way shape or form, is designed specifically to work around strange
+# cases present in anypaste plugins, mainly if the whole json is wrapped in a string so all
+# actual strings inside of the json are escaped, eg: "{\"hello\":\"world\"}", see test.sh for more
 function json_parse {
-	# shellcheck disable=1117
-	echo "$1" | sed -E "s/$2/top_sekrit/;s/.*\"top_sekrit\" *: *\"?//;s/\"?(,|}).*//;s/\\\//g"
+	local infernal_agony
+	infernal_agony="$1"
+	# remove everything before the value, not including the leading quote
+	eval "infernal_agony=\${infernal_agony##*?(\\\\)\\\"$2?(\\\\)\\\"*( ):*( )}"
+	# does it start with a quote?
+	if [[ $infernal_agony == ?(\\)\"* ]]
+	then
+		# remove initial quote
+		infernal_agony=${infernal_agony##?(\\)\"}
+		infernal_agony=${infernal_agony%%?(\\)\"*}
+	else
+		# it can only be a number or a boolean, so it can't contain special characters at this point
+		infernal_agony=${infernal_agony%%[ ,\}]*}
+	fi
+	echo "$infernal_agony"
+}
+
+# @param ALL env vars about a path
+# @return $ap_find_extension_return the "ideal" file extension, will be the real extension
+# if it has one, or otherwise will try to determine based on metadata
+function ap_find_extension {
+	local format_name_line
+	# ffmpeg provides the best file extensions
+	if [[ -n $ap_ffprobe && $ap_ffprobe == *probe_score=100* ]]
+	then
+		format_name_line=$(grep 'format_name=' <<< "$ap_ffprobe")
+		ap_find_extension_return=${format_name_line##*=}
+		return
+	fi
+	# attempt to use actual file extension, if it has one, otherwise null
+	[[ $ap_path == */+([^/]).+([^/]) ]] && ap_find_extension_return=${ap_path##*.} || ap_find_extension_return=
 }
 
 # PLUGINS
@@ -232,16 +264,22 @@ function imgur {
 function instaudio {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] && check_size 15000000
+		# we can't set -e because it will affect the rest of the script, and Just Say No to subshells
+		if [[ -n $ap_ffprobe ]]
+		then
+			[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
+		else
+			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
+		fi
+		check_size 15000000 || return 1
 		;;
 	upload)
 		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
 		inst_redirect=$(json_parse "$inst_json" 'redirect_url')
-		# this is POSIX compliant, I guess
-		ap_ext="${ap_path##*.}"
+		ap_find_extension
 		echo >&2
 		echo "Link: https://instaud.io$inst_redirect"
-		echo "Direct: https://instaud.io/_$inst_redirect.$ap_ext"
+		[[ -n $ap_find_extension_return ]] && echo "Direct: https://instaud.io/_$inst_redirect.$ap_find_extension_return"
 		echo
 		;;
 	get_info)
@@ -287,7 +325,13 @@ function clyp {
 function streamable {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime =~ 'video/'|'image/gif' ]] && check_size 10000000000
+		if [[ -n $ap_ffprobe ]]
+		then
+			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
+		else
+			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
+		fi
+		check_size 10000000000 || return 1
 		;;
 	get_required_config)
 		echo 'streamable_email'
@@ -319,7 +363,13 @@ function streamable {
 function sendvid {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime == video/* ]] && check_size 1000000000
+		if [[ -n $ap_ffprobe ]]
+		then
+			[[ $ap_ffprobe == *codec_type=video* ]] || return 1
+		else
+			[[ $ap_mime == video/* ]] || return 1
+		fi
+		check_size 1000000000 || return 1
 		;;
 	upload)
 		# Sendvid won't upload videos with certain file extensions, but will still encode them
@@ -350,9 +400,12 @@ function sendvid {
 function gfycat {
 	case $1 in
 	check_eligibility)
-		# I'm not sure why shellcheck is angry about this
-		# shellcheck disable=2140
-		[[ $ap_mime =~ "video/"|"image/gif" ]]
+		if [[ -n $ap_ffprobe ]]
+		then
+			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
+		else
+			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
+		fi
 		;;
 	upload)
 		# this is one of the more complex ones
@@ -412,7 +465,7 @@ function gfycat {
 		echo '[name]'
 		echo 'Gfycat'
 		echo '[description]'
-		echo 'Video/Gif host. Started out as a gif-to-mp4 kind of thing, so it strips out audio. Otherwise great!'
+		echo 'Video/Gif host. Started out as a gif-to-mp4 kind of thing, so it strips out audio and truncates videos to 15 seconds. Otherwise great!'
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
@@ -853,6 +906,9 @@ function ap_filter_global_plugins {
 	fi
 }
 
+# @params: ALL cli options
+# @params: ALL file-specific environment variables
+# @param: ap_local_plugins: list of plugins filtered by global stuff already
 function upload_loop {
 	echo "Current file: $ap_user_path" >&2
 	if $ap_i
@@ -953,8 +1009,16 @@ function ap_upload_files {
 			popd >/dev/null || return 1
 		fi
 		ap_local_plugins=("${ap_global_plugins[@]}")
+		ap_file_info=$(file "$ap_path")
 		ap_mime=$(file --mime-type --brief "$ap_path")
-		ap_human_name=${ap_human_name:-$(basename "$ap_path")}
+		if command -v ffprobe >/dev/null
+		then
+			ap_ffprobe=$(ffprobe -show_streams -show_format "$ap_path" 2>&1) || ap_ffprobe=
+		else
+			ap_ffprobe=
+			echo 'NOTE: Ffprobe is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
+		fi
+		ap_human_name=${ap_n:-$(basename "$ap_path")}
 		ap_size=$(wc -c < "$ap_path")
 		if upload_loop
 		then
@@ -962,6 +1026,7 @@ function ap_upload_files {
 		else
 			ap_exit_code=100
 			ap_failed_ul
+
 		fi
 	done
 }
@@ -991,7 +1056,6 @@ function ap_create_config {
 # Set both of these to a real account to enable the streamable plugin
 # export streamable_email=mark@example.com
 # export streamable_password=hunter2
-however, the ones
 # Create a docdroid.net account, go to settings, and create an API access token
 # export docdroid_access_token=928doebknb80fd38rduroenaudhoenkb283d8pf7230upf8rekb92
 
@@ -1006,29 +1070,25 @@ CFG
 # @param $ap_ok_uls: array of successful upload human names
 # @param $ap_fail_uls: array of failed upload human names
 function ap_summary {
-	# SUMMARY if multiple files uploaded
-	if [[ $((${#ap_ok_uls[@]} + ${#ap_fail_uls[@]})) -gt 0 ]]
+	# SUCCESSES
+	echo -n 'Sucessfully uploaded:' >&2
+	if [[ ${#ap_ok_uls[@]} -gt 0 ]]
 	then
-		# SUCCESSES
-		echo -en 'Sucessfully uploaded:' >&2
-		if [[ ${#ap_ok_uls[@]} -gt 0 ]]
-		then
-			printf " '%s'" "${ap_ok_uls[@]}" >&2
-			[[ $ap_hook_policy != greedy ]] && run_hooks
-		else
-			echo -n ' None' >&2
-		fi
+		printf " '%s'" "${ap_ok_uls[@]}" >&2
+		[[ $ap_hook_policy != greedy ]] && run_hooks
+	else
+		echo -n ' None' >&2
+	fi
 
+	echo >&2
+
+	# FAILURES
+	if [[ ${#ap_fail_uls[@]} -gt 0 ]]
+	then
+		echo -n 'Failed to upload:' >&2
+		printf " '%s'" "${ap_fail_uls[@]}" >&2
 		echo >&2
-
-		# FAILURES
-		if [[ ${#ap_fail_uls[@]} -gt 0 ]]
-		then
-			echo -n 'Failed to upload:' >&2
-			printf " '%s'" "${ap_fail_uls[@]}" >&2
-			echo >&2
-			[[ ${#ap_ok_uls[@]} -gt 0 ]] && ((ap_exit_code+=100))
-		fi
+		[[ ${#ap_ok_uls[@]} -gt 0 ]] && ((ap_exit_code+=100))
 	fi
 }
 
@@ -1099,7 +1159,7 @@ function ap_parse_args {
 			ap_version='true'
 			;;
 		n)
-			ap_human_name="$OPTARG"
+			ap_n="$OPTARG"
 			;;
 		s)
 			exec 2>/dev/null
@@ -1192,7 +1252,7 @@ function ap_main_inner {
 	$ap_version && echo "$ap_version_text" && return
 
 	[[ -z $ap_cfg ]] && ap_get_config_path
-	$ap_C && ap_create_config
+	$ap_C && ap_create_config && return
 
 	PATH="$PATH:$HOME/.anypaste-plugins"
 
@@ -1211,7 +1271,6 @@ function ap_main_inner {
 	ap_global_plugins=("${ap_plugins[@]}")
 	ap_filter_global_plugins
 
-	ap_found_stdin='false'
 	# NO FILES SPECIFIED
 	if [[ ${#ap_args[@]} == 0 ]]
 	then
@@ -1234,7 +1293,7 @@ function ap_main_inner {
 
 	ap_ok_uls=()
 	ap_fail_uls=()
-	ap_upload_files_arg="${ap_args[@]}"
+	ap_upload_files_arg=("${ap_args[@]}")
 	ap_upload_files
 
 	ap_summary
@@ -1249,8 +1308,7 @@ function ap_main {
 	return "$exit_code"
 }
 
-# only if not being sourced
-# see https://stackoverflow.com/questions/2683279/how-to-detect-if-a-script-is-being-sourced
+# shellcheck disable=2154
 if [[ -z $ap_test ]]
 then
 	ap_main "$@"
