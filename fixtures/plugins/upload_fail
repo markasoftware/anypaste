@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+function upload_fail {
+	[[ $1 != upload ]]
+}

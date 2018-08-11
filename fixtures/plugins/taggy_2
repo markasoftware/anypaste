@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+function taggy_2 {
+	if [[ $1 == 'get_info' ]]
+	then
+		echo '[name]'
+		echo 'taggy_1'
+		echo '[description]'
+		echo 'has some tags'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo 'deletable'
+	fi
+}

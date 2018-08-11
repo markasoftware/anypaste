@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+function incompatible {
+	[[ $1 != check_eligibility ]]
+}
