@@ -6,7 +6,7 @@
 
 # shellcheck disable=2128
 
-export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
+export ap_version ap_mac ap_path ap_human_name ap_mime ap_file_info ap_ffprobe ap_size ap_plugin ap_last_stdout
 ap_version_text='Anypaste 1.1.0-rc1'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
@@ -1124,7 +1124,7 @@ function ap_parse_args {
 	# the - is so that it ignores long options without error
 	# Shellcheck actually checks specifically for getopts options in the case. How cool is that?
 	# shellcheck disable=2213
-	while getopts 'C-vlxfhsip:c:n:t:' ap_opt "${ap_args[@]}"
+	while getopts 'C-vlfhsip:c:n:t:' ap_opt "${ap_args[@]}"
 	do
 		# shellcheck disable=2220
 		case $ap_opt in
@@ -1139,9 +1139,6 @@ function ap_parse_args {
 			;;
 		f)
 			ap_f='true'
-			;;
-		x)
-			ap_x='true'
 			;;
 		c)
 			ap_cfg="$OPTARG"
@@ -1216,9 +1213,6 @@ OPTIONS:
  -f          Do not check plugin compatibility. Without -p, it uses the
              first listed plugin in the config file. Primary meant for
              use with -p
- -x          If plugin specified using -p or interactive mode is the
-             exact name of an executable, it will be used, even if it is
-             not listed in the configuration file.
  -v          Display Anypaste version
  -h, --help  Display this help text.
 
@@ -1231,7 +1225,6 @@ function ap_main_inner {
 	# DEFAULT EVERYTHING
 	ap_i='false'
 	ap_f='false'
-	ap_x='false'
 	ap_C='false'
 	ap_p=""
 	ap_cfg=""

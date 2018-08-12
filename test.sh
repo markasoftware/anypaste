@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+shopt -s extglob
+
 test_version() {
 	local out_v out_version exit_code
 	out_v=$(ap_main -v)
