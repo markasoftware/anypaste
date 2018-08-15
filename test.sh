@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
+# shellcheck disable=1090
+# shellcheck disable=1091
+# shellcheck disable=2034
 
 test_version() {
 	local out_v out_version exit_code
 	out_v=$(ap_main -v)
 	exit_code=$?
-	assertTrue 'printed a version' '[[ $out_v == Anypaste" "?.??(.?) ]]'
+	assertPatternEquals 'printed a version' "Anypaste ?.??(.?)" "$out_v"
 	assertEquals 'exited sucessfully' 0 $exit_code
 	out_version=$(ap_main --version)
 	exit_code=$?
@@ -17,7 +20,7 @@ test_no_args() {
 	out=$(ap_main 2>&1)
 	exit_code=$?
 	assertEquals 'exits with 102' 102 $exit_code
-	assertTrue 'includes help text' '[[ $out == *OPTIONS* ]]'
+	assertPatternEquals 'includes help text' '*OPTIONS*' "$out"
 }
 
 test_ap_search_plugins_foo() {
@@ -175,7 +178,7 @@ test_upload_loop() {
 	out=$(upload_loop 2>&1)
 	exit_code=$?
 	assertEquals 'failed' '1' "$exit_code"
-	assertTrue 'correct error message' '[[ $out == *"No compatible plugins found"* ]]'
+	assertPatternEquals 'correct error message' '*No compatible plugins found*' "$out"
 
 	# one sucessful plugin
 	ap_user_path=a
@@ -183,7 +186,7 @@ test_upload_loop() {
 	out=$(upload_loop 2>&1)
 	exit_code=$?
 	assertEquals 'suceeded' '0' "$exit_code"
-	assertTrue 'uploaded the essentials' '[[ $out == *"essentials upload"* ]]'
+	assertPatternEquals 'uploaded the essentials' '*essentials upload*' "$out"
 
 	ap_user_path=a
 	ap_local_plugins=('upload_fail')
@@ -192,7 +195,9 @@ test_upload_loop() {
 	assertEquals 'failed' '1' "$exit_code"
 }
 
+# shellcheck disable=2034
 ap_test='true'
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done
+source ./extra-assertions.sh
 source ./shunit2/shunit2
