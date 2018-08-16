@@ -40,13 +40,13 @@ function json_parse {
 	local infernal_agony
 	infernal_agony="$1"
 	# remove everything before the value, not including the leading quote
-	eval "infernal_agony=\${infernal_agony##*?(\\\\)\\\"$2?(\\\\)\\\"*( ):*( )}"
+	eval "infernal_agony=\${infernal_agony##*\\\"$2\\\"*( ):*( )}"
 	# does it start with a quote?
-	if [[ $infernal_agony == ?(\\)\"* ]]
+	if [[ $infernal_agony == \"* ]]
 	then
 		# remove initial quote
-		infernal_agony=${infernal_agony##?(\\)\"}
-		infernal_agony=${infernal_agony%%?(\\)\"*}
+		infernal_agony=${infernal_agony:1}
+		infernal_agony=${infernal_agony%%\"*}
 	else
 		# it can only be a number or a boolean, so it can't contain special characters at this point
 		infernal_agony=${infernal_agony%%[ ,\}]*}
@@ -235,6 +235,7 @@ function imgur {
 		imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
 			-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
 			'https://api.imgur.com/3/image') || return 1
+		imgur_json=${imgur_json//\\/}
 		imgur_id=$(json_parse "$imgur_json" 'id')
 		imgur_link=$(json_parse "$imgur_json" 'link')
 		imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
@@ -1257,7 +1258,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'clyp' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'

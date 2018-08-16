@@ -145,9 +145,6 @@ test_json_parse() {
 	out=$(json_parse '{"hello":42}' 'hello')
 	assertEquals 'numerical (no quotes)' '42' "$out"
 
-	out=$(json_parse '"{\"doop\":\"why do you like me?\"}"' 'doop')
-	assertEquals 'escaped quotes fuck' 'why do you like me?' "$out"
-
 	out=$(json_parse '{"hello":"world"}' 'hello')
 	assertEquals 'basic json' 'world' "$out"
 

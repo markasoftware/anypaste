@@ -50,6 +50,8 @@ function assertDirectLinkWorks {
 	assertURLEquals "$1" "$file_content" "$direct_link"
 }
 
+# This checks that a plugin is able to upload a certain file, then uploads it.
+# it also checks get_info is correct for that plugin.
 # @param $1 name of a plugin
 # @param $2 file to upload
 # @return $ap_t_upload_stdout stdout of the upload for further assertions
