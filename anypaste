@@ -364,12 +364,12 @@ function streamable {
 function sendvid {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* ]] || return 1
-		else
+#		if [[ -n $ap_ffprobe ]]
+#		then
+#			[[ $ap_ffprobe == *codec_type=video* ]] || return 1
+#		else
 			[[ $ap_mime == video/* ]] || return 1
-		fi
+#		fi
 		check_size 1000000000 || return 1
 		;;
 	upload)
@@ -401,12 +401,12 @@ function sendvid {
 function gfycat {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
+#		if [[ -n $ap_ffprobe ]]
+#		then
+#			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
+#		else
 			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+#		fi
 		;;
 	upload)
 		# this is one of the more complex ones
