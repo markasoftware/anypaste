@@ -51,13 +51,6 @@ function test_version() {
 	assertTrue 'prints version' '[[ $out == Anypaste" "?.??(.?) ]]'
 }
 
-# @param $1 the stdout/err from anypaste
-function is_url_anypaste() {
-	local curl_output
-	curl_output=$(curl -s $(grep -oP '(?<=Direct: ).*' <<< "$1"))
-	assertEquals 'url equals anypaste' "$curl_output" "$(<anypaste)"
-}
-
 function test_basic_upload() {
 	local out exit_code
 	out=$(ap_main ./anypaste 2>&1)

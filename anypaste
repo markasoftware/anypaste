@@ -40,13 +40,13 @@ function json_parse {
 	local infernal_agony
 	infernal_agony="$1"
 	# remove everything before the value, not including the leading quote
-	eval "infernal_agony=\${infernal_agony##*?(\\\\)\\\"$2?(\\\\)\\\"*( ):*( )}"
+	eval "infernal_agony=\${infernal_agony##*\\\"$2\\\"*( ):*( )}"
 	# does it start with a quote?
-	if [[ $infernal_agony == ?(\\)\"* ]]
+	if [[ $infernal_agony == \"* ]]
 	then
 		# remove initial quote
-		infernal_agony=${infernal_agony##?(\\)\"}
-		infernal_agony=${infernal_agony%%?(\\)\"*}
+		infernal_agony=${infernal_agony:1}
+		infernal_agony=${infernal_agony%%\"*}
 	else
 		# it can only be a number or a boolean, so it can't contain special characters at this point
 		infernal_agony=${infernal_agony%%[ ,\}]*}
@@ -235,6 +235,7 @@ function imgur {
 		imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
 			-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
 			'https://api.imgur.com/3/image') || return 1
+		imgur_json=${imgur_json//\\/}
 		imgur_id=$(json_parse "$imgur_json" 'id')
 		imgur_link=$(json_parse "$imgur_json" 'link')
 		imgur_deletehash=$(json_parse "$imgur_json" 'deletehash')
@@ -363,12 +364,12 @@ function streamable {
 function sendvid {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* ]] || return 1
-		else
+#		if [[ -n $ap_ffprobe ]]
+#		then
+#			[[ $ap_ffprobe == *codec_type=video* ]] || return 1
+#		else
 			[[ $ap_mime == video/* ]] || return 1
-		fi
+#		fi
 		check_size 1000000000 || return 1
 		;;
 	upload)
@@ -400,12 +401,12 @@ function sendvid {
 function gfycat {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
+#		if [[ -n $ap_ffprobe ]]
+#		then
+#			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
+#		else
 			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+#		fi
 		;;
 	upload)
 		# this is one of the more complex ones
@@ -955,6 +956,36 @@ function upload_loop {
 	fi
 }
 
+# @param $1 relative path to a file
+# @return ap_rel_to_abs absolute path to the same file
+function ap_rel_to_abs {
+	# we use the prefix and local because we don't want to conflict with the built
+	# in function names
+	local ap_dirname ap_basename
+	ap_dirname=$(dirname "$1")
+	ap_basename=$(basename "$1")
+	# I'm not convinced we need the || cases here, but shellcheck is.
+	pushd "$ap_dirname" >/dev/null || return 1
+	ap_rel_to_abs_return="$PWD/$ap_basename"
+	popd >/dev/null || return 1
+}
+
+# @param $ap_path full path to file
+# @return $ap_file_info $ap_mime $ap_ffprobe $ap_human_name $ap_size see docs
+function ap_collect_file_metadata {
+	ap_file_info=$(file "$ap_path")
+	ap_mime=$(file --mime-type --brief "$ap_path")
+	if command -v ffprobe >/dev/null
+	then
+		ap_ffprobe=$(ffprobe -show_streams -show_format "$ap_path" 2>&1) || ap_ffprobe=
+	else
+		ap_ffprobe=
+		echo 'NOTE: Ffprobe is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
+	fi
+	ap_human_name=${ap_n:-$(basename "$ap_path")}
+	ap_size=$(wc -c < "$ap_path")
+}
+
 function ap_failed_ul {
 	ap_fail_uls+=("$ap_user_path")
 }
@@ -1001,25 +1032,11 @@ function ap_upload_files {
 			tar czf "$ap_path" -C "$ap_user_path" .
 		# NOTHING SPECIAL
 		else
-			ap_dirname=$(dirname "$ap_user_path")
-			ap_basename=$(basename "$ap_user_path")
-			# I'm not convinced we need the || cases here, but shellcheck is.
-			pushd "$ap_dirname" >/dev/null || return 1
-			ap_path="$PWD/$ap_basename"
-			popd >/dev/null || return 1
+			ap_rel_to_abs "$ap_user_path"
+			ap_path=$ap_rel_to_abs_return
 		fi
 		ap_local_plugins=("${ap_global_plugins[@]}")
-		ap_file_info=$(file "$ap_path")
-		ap_mime=$(file --mime-type --brief "$ap_path")
-		if command -v ffprobe >/dev/null
-		then
-			ap_ffprobe=$(ffprobe -show_streams -show_format "$ap_path" 2>&1) || ap_ffprobe=
-		else
-			ap_ffprobe=
-			echo 'NOTE: Ffprobe is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
-		fi
-		ap_human_name=${ap_n:-$(basename "$ap_path")}
-		ap_size=$(wc -c < "$ap_path")
+		ap_collect_file_metadata
 		if upload_loop
 		then
 			ap_ok_uls+=("$ap_user_path")
@@ -1241,7 +1258,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'clyp' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
