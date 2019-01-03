@@ -1,24 +1,7 @@
 #!/usr/bin/env bash
-
-test_version() {
-	local out_v out_version exit_code
-	out_v=$(ap_main -v)
-	exit_code=$?
-	assertTrue 'printed a version' '[[ $out_v == Anypaste" "?.?.??(-*) ]]'
-	assertEquals 'exited sucessfully' 0 $exit_code
-	out_version=$(ap_main --version)
-	exit_code=$?
-	assertEquals '-v and --version are the same' "$out_v" "$out_version"
-	assertEquals '--version exits sucessfully' 0 $exit_code
-}
-
-test_no_args() {
-	local out exit_code
-	out=$(ap_main 2>&1)
-	exit_code=$?
-	assertEquals 'exits with 102' 102 $exit_code
-	assertTrue 'includes help text' '[[ $out == *OPTIONS* ]]'
-}
+# shellcheck disable=1090
+# shellcheck disable=1091
+# shellcheck disable=2034
 
 test_ap_search_plugins_foo() {
 	local ap_search_plugins_arg ap_search_plugins_return
@@ -142,9 +125,6 @@ test_json_parse() {
 	out=$(json_parse '{"hello":42}' 'hello')
 	assertEquals 'numerical (no quotes)' '42' "$out"
 
-	out=$(json_parse '"{\"doop\":\"why do you like me?\"}"' 'doop')
-	assertEquals 'escaped quotes fuck' 'why do you like me?' "$out"
-
 	out=$(json_parse '{"hello":"world"}' 'hello')
 	assertEquals 'basic json' 'world' "$out"
 
@@ -175,7 +155,7 @@ test_upload_loop() {
 	out=$(upload_loop 2>&1)
 	exit_code=$?
 	assertEquals 'failed' '1' "$exit_code"
-	assertTrue 'correct error message' '[[ $out == *"No compatible plugins found"* ]]'
+	assertPatternEquals 'correct error message' '*No compatible plugins found*' "$out"
 
 	# one sucessful plugin
 	ap_user_path=a
@@ -183,7 +163,7 @@ test_upload_loop() {
 	out=$(upload_loop 2>&1)
 	exit_code=$?
 	assertEquals 'suceeded' '0' "$exit_code"
-	assertTrue 'uploaded the essentials' '[[ $out == *"essentials upload"* ]]'
+	assertPatternEquals 'uploaded the essentials' '*essentials upload*' "$out"
 
 	ap_user_path=a
 	ap_local_plugins=('upload_fail')
@@ -192,7 +172,9 @@ test_upload_loop() {
 	assertEquals 'failed' '1' "$exit_code"
 }
 
+# shellcheck disable=2034
 ap_test='true'
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done
+source ./extra-assertions.sh
 source ./shunit2/shunit2
