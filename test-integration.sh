@@ -26,7 +26,7 @@ function oneTimeSetUp() {
 	fi
 }
 
-test_no_args() {
+function test_no_args() {
 	local out exit_code
 	out=$(ap_main 2>&1)
 	exit_code=$?
