@@ -26,13 +26,13 @@ function oneTimeSetUp() {
 	fi
 }
 
-function test_no_args() {
+test_no_args() {
 	local out exit_code
 	out=$(ap_main 2>&1)
-	exit_code="$?"
-	assertEquals 'exit code' 102 "$exit_code"
-	assertTrue 'prints error message' '[[ $out == *ERROR* ]]'
-	assertTrue 'prints help text' '[[ $out == *OPTIONS* ]]'
+	exit_code=$?
+	assertEquals 'exits with 102' 102 $exit_code
+	assertPatternEquals 'includes help text' '*OPTIONS*' "$out"
+	assertPatternEquals 'includes error text' '*ERROR*' "$out"
 }
 
 function test_help() {
@@ -40,7 +40,7 @@ function test_help() {
 	out_h=$(ap_main -h 2>&1)
 	out_help=$(ap_main --help 2>&1)
 	exit_code="$?"
-	assertTrue 'prints help text' '[[ $out_h == *OPTIONS* ]]'
+	assertPatternEquals 'includes help text' '*OPTIONS*' "$out_h"
 	assertEquals '-h and --help are identical' "$out_h" "$out_help"
 	assertEquals 'exit code' 0 "$exit_code"
 }
