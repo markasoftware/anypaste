@@ -548,7 +548,7 @@ function ap_copy_hook {
 	ap_copy_me="${ap_copy_me##*: }"
 	if $ap_mac
 	then
-		pbcopy "$ap_copy_me"
+		pbcopy <<< "$ap_copy_me"
 	elif command -v xsel >/dev/null
 	then
 		echo -n "$ap_copy_me" | xsel -ib
@@ -577,10 +577,10 @@ function ap_notify_hook {
 	if $ap_mac
 	then
 		# hahahaha motherfuckers
-		say "$notification_text"
-		osascript -e "display notification \"$notification_title $notification_text\""
+		# say "$notification_text"
+		osascript -e "display notification \"$notification_text\" with title \"$notification_title\""
 	else
-		command -v notify-send >/dev/null && notify-send -a anypaste - 8000 "$notification_title" "$notification_text" || \
+		command -v notify-send >/dev/null && notify-send -a anypaste -t 8000 "$notification_title" "$notification_text" || \
 			echo 'WARNING: Install notify-send if you want --notify to work.'
 	fi
 }
@@ -1187,6 +1187,9 @@ function ap_parse_args {
 		s)
 			exec 2>/dev/null
 			;;
+		x)
+			ap_copy='true'
+			;;
 		esac
 	done
 
@@ -1211,6 +1214,8 @@ Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
 Upload `file`s or stdin to an automatically selected hosting sites.
 You can specify `-` as a file to read from stdin. If no files are
 listed, it will automatically attempt to use stdin.
+
+See https://anypaste.xyz/ for detailed documentation.
 
 OPTIONS:
 
@@ -1239,9 +1244,8 @@ OPTIONS:
  -f          Do not check plugin compatibility. Without -p, it uses the
              first listed plugin in the config file. Primary meant for
              use with -p
- -x          If plugin specified using -p or interactive mode is the
-             exact name of an executable, it will be used, even if it is
-             not listed in the configuration file.
+ -x, --copy  Copy the link to the clipboard after upload is complete.
+ --notify    Send a desktop notification (GUI) after upload.
  -v          Display Anypaste version
  -h, --help  Display this help text.
 

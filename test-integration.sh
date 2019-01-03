@@ -8,6 +8,9 @@
 # shellcheck disable=1090
 # shellcheck disable=1091
 
+# ignore system config file
+export XDG_CONFIG_HOME=/this/does/not/exist
+
 shopt -s extglob
 
 function exit {
