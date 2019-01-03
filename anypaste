@@ -592,11 +592,14 @@ function ap_notify_hook {
 # @param $2: Name of the section
 # @exit: 1 if that section does not exist, 0 if it does
 # @return $ap_get_section_return: the raw section contents
-# ap_sections has keys plugin_name|property_name, and values are the raw contents
-declare -A ap_sections
+# we use indirection/variable variables instead of Bash's built-in associative arrays
+# because they aren't supported on Bash 3, which Mac still uses iirc due to its license.
+# Associative arrays are used in a previous commit, which can be used if Mac ever changes
+# In theory, we could use a hash function with a normal array, but AAAAHGH
+# Variable names are ap_sections_pluginname__sectionname
 function ap_get_section {
-	local requested_key="$1|$2"
-	if [[ -z ${ap_sections[$requested_key]} ]]
+	local requested_key="ap_sections_$1__$2"
+	if [[ -z ${!requested_key} ]]
 	then
 		# http://mywiki.wooledge.org/BashFAQ/024
 		# in other words, we can't use the loop in a pipeline like we "should" because
@@ -616,8 +619,12 @@ function ap_get_section {
 			# parse section headers
 			if [[ $line =~ ^\[.*\]$ ]]
 			then
-				current_key="$1|$section"
-				ap_sections[$current_key]="$buffer"
+				current_key="ap_sections_$1__$section"
+				# greycat describes how to properly assign multiline values to an indirect reference
+				# here: https://mywiki.wooledge.org/BashFAQ/006
+				# since there's no security risk, I kind've just want to use eval for simplicity, but NAH
+				# here strings append a newline automatically
+				IFS= read -d '' -r "$current_key" <<< "${buffer%%$'\n'}"
 				buffer=
 				section="${line//[\[\]]/}"
 				continue
@@ -628,8 +635,8 @@ function ap_get_section {
 "
 		done < /tmp/ap_get_info
 	fi
-	ap_get_section_return="${ap_sections[$requested_key]}"
-	[[ -n ${ap_sections[$requested_key]} ]] && return 0 || return 1
+	ap_get_section_return=${!requested_key}
+	[[ -n ${!requested_key} ]] && return 0 || return 1
 }
 
 # Y is always default. Word your questions better. Be positive!
