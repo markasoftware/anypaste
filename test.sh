@@ -3,26 +3,6 @@
 # shellcheck disable=1091
 # shellcheck disable=2034
 
-test_version() {
-	local out_v out_version exit_code
-	out_v=$(ap_main -v)
-	exit_code=$?
-	assertTrue 'printed a version' '[[ $out_v == Anypaste" "?.?.??(-*) ]]'
-	assertEquals 'exited sucessfully' 0 $exit_code
-	out_version=$(ap_main --version)
-	exit_code=$?
-	assertEquals '-v and --version are the same' "$out_v" "$out_version"
-	assertEquals '--version exits sucessfully' 0 $exit_code
-}
-
-test_no_args() {
-	local out exit_code
-	out=$(ap_main 2>&1)
-	exit_code=$?
-	assertEquals 'exits with 102' 102 $exit_code
-	assertPatternEquals 'includes help text' '*OPTIONS*' "$out"
-}
-
 test_ap_search_plugins_foo() {
 	local ap_search_plugins_arg ap_search_plugins_return
 	ap_search_plugins_arg=('foo')
