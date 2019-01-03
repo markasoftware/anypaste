@@ -31,23 +31,31 @@ function assertGetInfoWorks {
 
 # internal helper
 # @param $1 label of the link to retrieve
+# @param $2 anypaste stdout (optional, defaults to $ap_t_upload_stdout)
 # @return stdout the link in its full glory
 function get_output_link {
-	local grep_output
+	local grep_output anypaste_stdout
+	[[ -n $2 ]] && anypaste_stdout=$2 || anypaste_stdout=$ap_t_upload_stdout
 	# TODO: BASH_REMATCH instead
-	grep_output=$(grep "^$1: " <<< "$ap_t_upload_stdout")
+	grep_output=$(grep "^$1: " <<< "$anypaste_stdout")
 	echo "${grep_output#*: }"
 	exit
 }
 
 # @param $1 error message
 # @param $2 file path
+# @param $3 anypaste stdout (optional, defaults to $ap_t_upload_stdout)
 function assertDirectLinkWorks {
 	local file_content direct_link
-	direct_link=$(get_output_link 'Direct')
+	direct_link=$(get_output_link 'Direct' "$3")
 	assertNotNull 'direct link was outputted' "$direct_link"
 	file_content=$(<"$2")
 	assertURLEquals "$1" "$file_content" "$direct_link"
+}
+
+# @param $1 anypaste stdout
+function assertURLIsAnypaste {
+	assertDirectLinkWorks 'URL contains Anypaste source code' './anypaste' "$1"
 }
 
 # This checks that a plugin is able to upload a certain file, then uploads it.

@@ -5,6 +5,8 @@
 
 # shellcheck disable=2016
 # shellcheck disable=2034
+# shellcheck disable=1090
+# shellcheck disable=1091
 
 shopt -s extglob
 
@@ -57,7 +59,7 @@ function test_basic_upload() {
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
 	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.com/+([a-z])* ]]'
-	is_url_anypaste "$out"
+	assertURLIsAnypaste "$out"
 }
 
 function test_p_upload() {
@@ -66,7 +68,7 @@ function test_p_upload() {
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
 	assertTrue 'uploads to ixio' '[[ $out == *http://ix.io/+([a-zA-Z0-9])* ]]'
-	is_url_anypaste "$out"
+	assertURLIsAnypaste "$out"
 }
 
 function test_stdin_upload() {
@@ -75,20 +77,20 @@ function test_stdin_upload() {
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
 	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.com/+([a-z])* ]]'
-	is_url_anypaste "$out"
+	assertURLIsAnypaste "$out"
 }
 
 function test_multi_upload() {
 	local out exit_code
 	out=$(ap_main -c fixtures/configs/essentials.conf ./anypaste ./LICENSE)
-	echo "$out"
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
-	assertTrue 'uploads anypaste' '[[ $out == *"essentials upload anypaste" ]]'
-	assertTrue 'uploads LICENSE' '[[ $out == *"essentials upload LICENSE" ]]'
+	assertTrue 'uploads anypaste' '[[ $out == *"essentials upload anypaste"* ]]'
+	assertTrue 'uploads LICENSE' '[[ $out == *"essentials upload LICENSE"* ]]'
 }
 
 ap_test=true
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done
+source ./extra-assertions.sh
 source ./shunit2/shunit2
