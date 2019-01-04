@@ -367,7 +367,7 @@ function sendvid {
 		if [[ -n $ap_ffprobe ]]
 		then
 			# ffprobe reports images as videos. We have to check for a frame count to know if it's actually a video
-			[[ $ap_ffprobe == *nb_frames=[1-9]* ]] || return 1
+			[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *'Duration: '[0-9]* ]] || return 1
 		else
 			[[ $ap_mime == video/* ]] || return 1
 		fi
@@ -404,7 +404,7 @@ function gfycat {
 	check_eligibility)
 		if [[ -n $ap_ffprobe ]]
 		then
-			[[ $ap_ffprobe == *nb_frames=[1-9]* || $ap_ffprobe == *format_name=gif* ]] || return 1
+			[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *'Duration: '[0-9]* || $ap_ffprobe == *format_name=gif* ]] || return 1
 		else
 			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
 		fi
