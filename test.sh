@@ -3,6 +3,75 @@
 # shellcheck disable=1091
 # shellcheck disable=2034
 
+test_ap_is_video() {
+	local code
+	ap_path=$webm_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'webm is video' 0 "$code"
+
+	ap_path=$mkv_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'mkv is video' 0 "$code"
+
+	ap_path=$gif_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'gif is not video' 1 "$code"
+
+	ap_path=$wav_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'wav is not video' 1 "$code"
+}
+
+test_ap_is_gif() {
+	local code
+	ap_path=$gif_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'gif is gif' 0 "$code"
+
+	ap_path=$mkv_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'mkv is not gif' 1 "$code"
+
+	ap_path=$png_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'png is not gif' 1 "$code"
+}
+
+test_ap_is_audio() {
+	local code
+	ap_path=$mp3_fixture
+	ap_collect_file_metadata
+	ap_is_audio
+	code=$?
+	assertEquals 'mp3 is audio' 0 "$code"
+
+	ap_path=$wav_fixture
+	ap_collect_file_metadata
+	ap_is_audio
+	code=$?
+	assertEquals 'wav is audio' 0 "$code"
+
+	ap_path=$mkv_fixture
+	ap_collect_file_metadata
+	ap_is_audio
+	code=$?
+	assertEquals 'mkv is not audio' 1 "$code"
+}
+
 test_ap_search_plugins_foo() {
 	local ap_search_plugins_arg ap_search_plugins_return
 	ap_search_plugins_arg=('foo')
@@ -177,4 +246,5 @@ ap_test='true'
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done
 source ./extra-assertions.sh
+source ./fixture-paths.sh
 source ./shunit2/shunit2

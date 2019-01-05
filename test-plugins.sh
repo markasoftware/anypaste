@@ -6,19 +6,6 @@
 
 # TODO: how do we handle testing if there are weird filenames/coming from stdin?
 
-text_fixture=./anypaste
-# these images are my own
-jpeg_fixture=./fixtures/files/lasers.jpg
-png_fixture=./fixtures/files/tux.png
-# these audio files are from freesound.org, and were released by their authors under CC 0
-wav_fixture=./fixtures/files/boop.wav
-mp3_fixture=./fixtures/files/deedoot.mp3
-# these are my own screen recordings
-# h264
-mkv_fixture=./fixtures/files/screen.mkv
-webm_fixture=./fixtures/files/screen.webm
-gif_fixture=./fixtures/files/screen.gif
-
 function test_hastebin() {
 	uploadAndAssert hastebin "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
@@ -90,6 +77,10 @@ function test_gfycat() {
 	# surprise! gfycat re-encodes their "direct links"
 	assertLabelPatternEquals 'gfycat direct link' 'Direct' 'https://thumbs.gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])-size_restricted.gif'
 	assertLabelPatternEquals 'gfycat normal link' 'Link' 'https://gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])'
+
+	uploadAndAssert gfycat "$mkv_fixture"
+	assertLabelPatternEquals 'gfycat direct link (mkv)' 'Direct' 'https://thumbs.gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])-size_restricted.gif'
+	assertLabelPatternEquals 'gfycat normal link (mkv)' 'Link' 'https://gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])'
 }
 
 # TODO: tests for authenticated plugins
@@ -98,4 +89,5 @@ function test_gfycat() {
 ap_test=true
 source ./anypaste
 source ./extra-assertions.sh
+source ./fixture-paths.sh
 source ./shunit2/shunit2

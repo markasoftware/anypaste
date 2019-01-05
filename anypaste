@@ -70,6 +70,40 @@ function ap_find_extension {
 	fi
 }
 
+# @return exit code is 0 if input is a video (NOT a motion JPEG or animated GIF)
+# Uses ffprobe and falls back to file --mime
+function ap_is_video {
+	# codec_type=video indicates that there is some video-related stream, but that could mean an animated gif or even a still png
+	# bit_rate indicates that it must be a true video, that ffprobe truly "understands" the file
+	if [[ -n $ap_ffprobe ]]
+	then
+		[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *bit_rate=[0-9]* ]]
+	else
+		[[ $ap_mime == video/* ]]
+	fi
+}
+
+# @return exit code is 0 if input is a GIF (doesn't check if it's animated)
+function ap_is_gif {
+	if [[ -n $ap_ffprobe ]]
+	then
+		[[ $ap_ffprobe == *codec_name=gif* ]]
+	else
+		[[ $ap_mime == image/gif ]]
+	fi
+}
+
+function ap_is_audio {
+	if [[ -n $ap_ffprobe ]]
+	then
+		# for now, we make sure there is just one stream and that it is audio
+		# Very likely it is possible to have two streams, both audio, but I don't care
+		[[ $ap_ffprobe == *codec_type=audio* ]] && [[ $ap_ffprobe != *index=1* ]]
+	else
+		[[ $ap_mime == audio/* ]]
+	fi
+}
+
 # PLUGINS
 
 function ixio {
@@ -152,7 +186,6 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		# TODO: if we ever add support for custom parameters for plugins, then have custom filename here!
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
@@ -265,14 +298,7 @@ function imgur {
 function instaudio {
 	case $1 in
 	check_eligibility)
-		# we can't set -e because it will affect the rest of the script, and Just Say No to subshells
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
-		else
-			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
-		fi
-		check_size 15000000 || return 1
+		ap_is_audio && check_size 15000000
 		;;
 	upload)
 		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
@@ -298,8 +324,7 @@ function instaudio {
 function clyp {
 	case $1 in
 	check_eligibility)
-		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] && \
-			check_size 5000000
+		ap_is_audio && check_size 5000000
 		;;
 	upload)
 		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
@@ -326,12 +351,7 @@ function clyp {
 function streamable {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
-			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+		ap_is_video || ap_is_gif || return 1
 		check_size 10000000000 || return 1
 		;;
 	get_required_config)
@@ -364,14 +384,7 @@ function streamable {
 function sendvid {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			# ffprobe reports images as videos. We have to check for a frame count to know if it's actually a video
-			[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *'Duration: '[0-9]* ]] || return 1
-		else
-			[[ $ap_mime == video/* ]] || return 1
-		fi
-		check_size 1000000000 || return 1
+		ap_is_video && check_size 1000000000
 		;;
 	upload)
 		# Sendvid won't upload videos with certain file extensions, but will still encode them
@@ -402,12 +415,7 @@ function sendvid {
 function gfycat {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *'Duration: '[0-9]* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
-			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+		ap_is_video || ap_is_gif
 		;;
 	upload)
 		# this is one of the more complex ones
