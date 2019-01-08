@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+function config_foo {
+	if [[ $1 == 'get_info' ]]
+	then
+		echo '[name]'
+		echo 'ur mom'
+		echo '[config]'
+		echo 'optional|bar|The maiden name of your mother'
+		echo 'required|foo|The middle name of your father'
+		echo 'optional|titties|your UNIX PASSWORD'
+	fi
+}

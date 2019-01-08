@@ -7,7 +7,7 @@
 # shellcheck disable=2128
 
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.0-rc1'
+ap_version_text='Anypaste 1.1'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
 
@@ -67,6 +67,29 @@ function ap_find_extension {
 	else
 		# attempt to use actual file extension, if it has one, otherwise null
 		[[ $ap_path == */+([^/]).+([^/]) ]] && ap_find_extension_return=${ap_path##*.} || ap_find_extension_return=
+	fi
+}
+
+# @return exit code is 0 if input is a video (NOT a motion JPEG or animated GIF)
+# Uses ffprobe and falls back to file --mime
+function ap_is_video {
+	# codec_type=video indicates that there is some video-related stream, but that could mean an animated gif or even a still png
+	# bit_rate indicates that it must be a true video, that ffprobe truly "understands" the file
+	if [[ -n $ap_ffprobe ]]
+	then
+		[[ $ap_ffprobe == *codec_type=video* && $ap_ffprobe == *bit_rate=[0-9]* ]]
+	else
+		[[ $ap_mime == video/* ]]
+	fi
+}
+
+# @return exit code is 0 if input is a GIF (doesn't check if it's animated)
+function ap_is_gif {
+	if [[ -n $ap_ffprobe ]]
+	then
+		[[ $ap_ffprobe == *codec_name=gif* ]]
+	else
+		[[ $ap_mime == image/gif ]]
 	fi
 }
 
@@ -152,7 +175,6 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		# TODO: if we ever add support for custom parameters for plugins, then have custom filename here!
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
@@ -265,14 +287,13 @@ function imgur {
 function instaudio {
 	case $1 in
 	check_eligibility)
-		# we can't set -e because it will affect the rest of the script, and Just Say No to subshells
 		if [[ -n $ap_ffprobe ]]
 		then
-			[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
+				[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
 		else
-			[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
+				[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
 		fi
-		check_size 15000000 || return 1
+		check_size 15000000
 		;;
 	upload)
 		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
@@ -315,9 +336,8 @@ function clyp {
 		echo '[name]'
 		echo 'clyp.it'
 		echo '[description]'
-		echo 'Mediocre audio host. Not sure why I added it; there is limited selection in audio hosts.'
+		echo 'Mediocre audio host. Not sure why I added it; there is limited selection in audio hosts. Links expire after 24 hours.'
 		echo '[tags]'
-		echo 'permanent'
 		echo 'direct'
 		;;
 	esac
@@ -326,17 +346,8 @@ function clyp {
 function streamable {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *codec_type=video* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
-			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+		ap_is_video || ap_is_gif || return 1
 		check_size 10000000000 || return 1
-		;;
-	get_required_config)
-		echo 'streamable_email'
-		echo 'streamable_password'
 		;;
 	upload)
 		# shellcheck disable=2154
@@ -364,14 +375,7 @@ function streamable {
 function sendvid {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			# ffprobe reports images as videos. We have to check for a frame count to know if it's actually a video
-			[[ $ap_ffprobe == *nb_frames=[1-9]* ]] || return 1
-		else
-			[[ $ap_mime == video/* ]] || return 1
-		fi
-		check_size 1000000000 || return 1
+		ap_is_video && check_size 1000000000
 		;;
 	upload)
 		# Sendvid won't upload videos with certain file extensions, but will still encode them
@@ -402,29 +406,20 @@ function sendvid {
 function gfycat {
 	case $1 in
 	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-			[[ $ap_ffprobe == *nb_frames=[1-9]* || $ap_ffprobe == *format_name=gif* ]] || return 1
-		else
-			[[ $ap_mime =~ 'video/'|'image/gif' ]] || return 1
-		fi
+		ap_is_video || ap_is_gif
 		;;
 	upload)
+		# CHANGE NOTICE: There used to be a gfycat_duplicates variable which skipped waiting for encoding
+		# at the price of not deduplicating on gfycat's end. However, it seems that this sometimes results
+		# in URLs which take a *very* long time to encode, even for very short videos. It seems polling status
+		# might actually speed up the encoding process? I'm not sure. Either way, that's not configurable anymore.
+
 		# this is one of the more complex ones
 		# get the key/name of the gfy
-		# shellcheck disable=2154
-		if [[ -n "$gfycat_duplicates" ]]
-		then
-			gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
-				echo 'Getting gfycat key did not return HTTP 200!' >&2
-				return 1;
-			}
-		else
-			gfy_init_json=$(curl -sfXPOST -H 'Content-Type: application/json' -d '{"noMd5":"true"}' https://api.gfycat.com/v1/gfycats) || {
-				echo 'Getting gfycat key did not return HTTP 200!' >&2
-				return 1;
-			}
-		fi
+		gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
+			echo 'Getting gfycat key did not return HTTP 200!' >&2
+			return 1;
+		}
 		gfy_name=$(json_parse "$gfy_init_json" 'gfyname')
 		# the file being uploaded must have the same name as the key
 		# since i don't know how to set it using curl options, I'm
@@ -432,32 +427,26 @@ function gfycat {
 		ln -s "$ap_path" "/tmp/$gfy_name"
 		curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
 		rm -f "/tmp/$gfy_name"
-		if [[ -n "$gfycat_duplicates" ]]
-		then
-			# We have to wait for encoding (unlike with streamable) because
-			# during encoding, if it has the same hash as another gfy, it
-			# returns the (different) link to the original gfy, and the new
-			# one won't work. It's possible to override this to upload with
-			# the new URL regardless, but i don't need to use up extra space
-			# on the gfycat servers.
-			echo 'Waiting for remote encoding to complete...' >&2
-			while true
-			do
-				sleep 4
-				gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
-					echo 'Status check request did not return HTTP 200!' >&2
-					echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
-					return 1;
-				}
-				[[ $gfy_status == *complete* ]] && break
-			done
-			[[ $gfy_status == *gfyName* ]] && \
-				gfy_final_name=$(json_parse "$gfy_status" 'gfyName') || \
-				gfy_final_name=$(json_parse "$gfy_status" 'gfyname')
-		else
-			gfy_final_name="$gfy_name"
-			echo 'Reminder: Gfycat needs time to encode. Your video will not appear right away.' >&2
-		fi
+		# We have to wait for encoding (unlike with streamable) because
+		# during encoding, if it has the same hash as another gfy, it
+		# returns the (different) link to the original gfy, and the new
+		# one won't work. It's possible to override this to upload with
+		# the new URL regardless, but i don't need to use up extra space
+		# on the gfycat servers.
+		echo 'Waiting for remote encoding to complete...' >&2
+		while true
+		do
+			sleep 4
+			gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
+				echo 'Status check request did not return HTTP 200!' >&2
+				echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
+				return 1;
+			}
+			[[ $gfy_status == *complete* ]] && break
+		done
+		[[ $gfy_status == *gfyName* ]] && \
+			gfy_final_name=$(json_parse "$gfy_status" 'gfyName') || \
+			gfy_final_name=$(json_parse "$gfy_status" 'gfyname')
 		echo >&2
 		echo "Link: https://gfycat.com/$gfy_final_name"
 		echo "Direct: https://thumbs.gfycat.com/$gfy_final_name-size_restricted.gif"
@@ -478,9 +467,6 @@ function gfycat {
 
 function docdroid {
 	case $1 in
-	get_required_config)
-		echo 'docdroid_access_token'
-		;;
 	check_eligibility)
 		[[ $ap_mime =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
 		;;
@@ -548,7 +534,7 @@ function ap_copy_hook {
 	ap_copy_me="${ap_copy_me##*: }"
 	if $ap_mac
 	then
-		pbcopy "$ap_copy_me"
+		pbcopy <<< "$ap_copy_me"
 	elif command -v xsel >/dev/null
 	then
 		echo -n "$ap_copy_me" | xsel -ib
@@ -577,10 +563,10 @@ function ap_notify_hook {
 	if $ap_mac
 	then
 		# hahahaha motherfuckers
-		say "$notification_text"
-		osascript -e "display notification \"$notification_title $notification_text\""
+		# say "$notification_text"
+		osascript -e "display notification \"$notification_text\" with title \"$notification_title\""
 	else
-		command -v notify-send >/dev/null && notify-send -a anypaste - 8000 "$notification_title" "$notification_text" || \
+		command -v notify-send >/dev/null && notify-send -a anypaste -t 8000 "$notification_title" "$notification_text" || \
 			echo 'WARNING: Install notify-send if you want --notify to work.'
 	fi
 }
@@ -592,11 +578,14 @@ function ap_notify_hook {
 # @param $2: Name of the section
 # @exit: 1 if that section does not exist, 0 if it does
 # @return $ap_get_section_return: the raw section contents
-# ap_sections has keys plugin_name|property_name, and values are the raw contents
-declare -A ap_sections
+# we use indirection/variable variables instead of Bash's built-in associative arrays
+# because they aren't supported on Bash 3, which Mac still uses iirc due to its license.
+# Associative arrays are used in a previous commit, which can be used if Mac ever changes
+# In theory, we could use a hash function with a normal array, but AAAAHGH
+# Variable names are ap_sections_pluginname__sectionname
 function ap_get_section {
-	local requested_key="$1|$2"
-	if [[ -z ${ap_sections[$requested_key]} ]]
+	local requested_key="ap_sections_$1__$2"
+	if [[ -z ${!requested_key} ]]
 	then
 		# http://mywiki.wooledge.org/BashFAQ/024
 		# in other words, we can't use the loop in a pipeline like we "should" because
@@ -616,8 +605,12 @@ function ap_get_section {
 			# parse section headers
 			if [[ $line =~ ^\[.*\]$ ]]
 			then
-				current_key="$1|$section"
-				ap_sections[$current_key]="$buffer"
+				current_key="ap_sections_$1__$section"
+				# greycat describes how to properly assign multiline values to an indirect reference
+				# here: https://mywiki.wooledge.org/BashFAQ/006
+				# since there's no security risk, I kind've just want to use eval for simplicity, but NAH
+				# here strings append a newline automatically
+				IFS= read -d '' -r "$current_key" <<< "${buffer%%$'\n'}"
 				buffer=
 				section="${line//[\[\]]/}"
 				continue
@@ -628,8 +621,8 @@ function ap_get_section {
 "
 		done < /tmp/ap_get_info
 	fi
-	ap_get_section_return="${ap_sections[$requested_key]}"
-	[[ -n ${ap_sections[$requested_key]} ]] && return 0 || return 1
+	ap_get_section_return=${!requested_key}
+	[[ -n ${!requested_key} ]] && return 0 || return 1
 }
 
 # Y is always default. Word your questions better. Be positive!
@@ -1077,10 +1070,6 @@ function ap_create_config {
 # export streamable_password=hunter2
 # Create a docdroid.net account, go to settings, and create an API access token
 # export docdroid_access_token=928doebknb80fd38rduroenaudhoenkb283d8pf7230upf8rekb92
-
-# Set this to anything to enable duplicate-checking on Gfycat. See anypaste documentation
-# for more details.
-# export gfycat_duplicates="yes"
 CFG
 	echo "Created configuration file at $ap_cfg" >&2
 	echo 'It does nothing by default, edit it to make it cool!' >&2
@@ -1180,6 +1169,9 @@ function ap_parse_args {
 		s)
 			exec 2>/dev/null
 			;;
+		x)
+			ap_copy='true'
+			;;
 		esac
 	done
 
@@ -1204,6 +1196,8 @@ Usage: anypaste [-ifh] [-p plugin] [-c config_file_path] [file1 [file2 ...]]
 Upload `file`s or stdin to an automatically selected hosting sites.
 You can specify `-` as a file to read from stdin. If no files are
 listed, it will automatically attempt to use stdin.
+
+See https://anypaste.xyz/ for detailed documentation.
 
 OPTIONS:
 
@@ -1232,9 +1226,8 @@ OPTIONS:
  -f          Do not check plugin compatibility. Without -p, it uses the
              first listed plugin in the config file. Primary meant for
              use with -p
- -x          If plugin specified using -p or interactive mode is the
-             exact name of an executable, it will be used, even if it is
-             not listed in the configuration file.
+ -x, --copy  Copy the link to the clipboard after upload is complete.
+ --notify    Send a desktop notification (GUI) after upload.
  -v          Display Anypaste version
  -h, --help  Display this help text.
 

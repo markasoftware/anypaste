@@ -3,6 +3,54 @@
 # shellcheck disable=1091
 # shellcheck disable=2034
 
+test_ap_is_video() {
+	local code
+	ap_path=$webm_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'webm is video' 0 "$code"
+
+	ap_path=$mkv_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'mkv is video' 0 "$code"
+
+	ap_path=$gif_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'gif is not video' 1 "$code"
+
+	ap_path=$wav_fixture
+	ap_collect_file_metadata
+	ap_is_video
+	code=$?
+	assertEquals 'wav is not video' 1 "$code"
+}
+
+test_ap_is_gif() {
+	local code
+	ap_path=$gif_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'gif is gif' 0 "$code"
+
+	ap_path=$mkv_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'mkv is not gif' 1 "$code"
+
+	ap_path=$png_fixture
+	ap_collect_file_metadata
+	ap_is_gif
+	code=$?
+	assertEquals 'png is not gif' 1 "$code"
+}
+
 test_ap_search_plugins_foo() {
 	local ap_search_plugins_arg ap_search_plugins_return
 	ap_search_plugins_arg=('foo')
@@ -95,6 +143,27 @@ test_ap_filter_local_plugins() {
 	ap_local_plugins=('essentials' 'incompatible' 'taggy_1')
 	ap_filter_local_plugins >/dev/null
 	assertEquals 'incompatible surrounded by two compatible plugins' 'essentials taggy_1' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=
+	bar=
+	titties=
+	ap_filter_local_plugins >/dev/null 2>&1
+	assertNull 'incompatible because of required config' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=bar
+	bar=
+	titties=
+	ap_filter_local_plugins >/dev/null
+	assertEquals 'has required config' 'config_foo' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=bar
+	bar=foo
+	titties=big
+	ap_filter_local_plugins >/dev/null
+	assertEquals 'has required config and optional' 'config_foo' "${ap_local_plugins[*]}"
 }
 
 test_ap_summary() {
@@ -177,4 +246,5 @@ ap_test='true'
 source ./anypaste
 for i in ./fixtures/plugins/*; do source "$i"; done
 source ./extra-assertions.sh
+source ./fixture-paths.sh
 source ./shunit2/shunit2
