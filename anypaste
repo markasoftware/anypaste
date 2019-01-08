@@ -93,17 +93,6 @@ function ap_is_gif {
 	fi
 }
 
-function ap_is_audio {
-	if [[ -n $ap_ffprobe ]]
-	then
-		# for now, we make sure there is just one stream and that it is audio
-		# Very likely it is possible to have two streams, both audio, but I don't care
-		[[ $ap_ffprobe == *codec_type=audio* ]] && [[ $ap_ffprobe != *index=1* ]]
-	else
-		[[ $ap_mime == audio/* ]]
-	fi
-}
-
 # PLUGINS
 
 function ixio {
@@ -298,7 +287,13 @@ function imgur {
 function instaudio {
 	case $1 in
 	check_eligibility)
-		ap_is_audio && check_size 15000000
+		if [[ -n $ap_ffprobe ]]
+		then
+				[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
+		else
+				[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
+		fi
+		check_size 15000000
 		;;
 	upload)
 		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
@@ -324,7 +319,8 @@ function instaudio {
 function clyp {
 	case $1 in
 	check_eligibility)
-		ap_is_audio && check_size 5000000
+		[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg'|'audio/x-aiff'|'audio/x-m4a' ]] && \
+			check_size 5000000
 		;;
 	upload)
 		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
@@ -340,9 +336,8 @@ function clyp {
 		echo '[name]'
 		echo 'clyp.it'
 		echo '[description]'
-		echo 'Mediocre audio host. Not sure why I added it; there is limited selection in audio hosts.'
+		echo 'Mediocre audio host. Not sure why I added it; there is limited selection in audio hosts. Links expire after 24 hours.'
 		echo '[tags]'
-		echo 'permanent'
 		echo 'direct'
 		;;
 	esac
@@ -353,10 +348,6 @@ function streamable {
 	check_eligibility)
 		ap_is_video || ap_is_gif || return 1
 		check_size 10000000000 || return 1
-		;;
-	get_required_config)
-		echo 'streamable_email'
-		echo 'streamable_password'
 		;;
 	upload)
 		# shellcheck disable=2154
@@ -486,9 +477,6 @@ function gfycat {
 
 function docdroid {
 	case $1 in
-	get_required_config)
-		echo 'docdroid_access_token'
-		;;
 	check_eligibility)
 		[[ $ap_mime =~ 'application/pdf'|'application/msword'|'application/vnd.openxmlformats-officedocument'|'application/vnd.ms'|'application/vnd.oasis.opendocument'|'text/rtf' ]]
 		;;

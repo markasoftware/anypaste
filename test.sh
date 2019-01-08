@@ -51,27 +51,6 @@ test_ap_is_gif() {
 	assertEquals 'png is not gif' 1 "$code"
 }
 
-test_ap_is_audio() {
-	local code
-	ap_path=$mp3_fixture
-	ap_collect_file_metadata
-	ap_is_audio
-	code=$?
-	assertEquals 'mp3 is audio' 0 "$code"
-
-	ap_path=$wav_fixture
-	ap_collect_file_metadata
-	ap_is_audio
-	code=$?
-	assertEquals 'wav is audio' 0 "$code"
-
-	ap_path=$mkv_fixture
-	ap_collect_file_metadata
-	ap_is_audio
-	code=$?
-	assertEquals 'mkv is not audio' 1 "$code"
-}
-
 test_ap_search_plugins_foo() {
 	local ap_search_plugins_arg ap_search_plugins_return
 	ap_search_plugins_arg=('foo')
@@ -164,6 +143,27 @@ test_ap_filter_local_plugins() {
 	ap_local_plugins=('essentials' 'incompatible' 'taggy_1')
 	ap_filter_local_plugins >/dev/null
 	assertEquals 'incompatible surrounded by two compatible plugins' 'essentials taggy_1' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=
+	bar=
+	titties=
+	ap_filter_local_plugins >/dev/null 2>&1
+	assertNull 'incompatible because of required config' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=bar
+	bar=
+	titties=
+	ap_filter_local_plugins >/dev/null
+	assertEquals 'has required config' 'config_foo' "${ap_local_plugins[*]}"
+
+	ap_local_plugins=('config_foo')
+	foo=bar
+	bar=foo
+	titties=big
+	ap_filter_local_plugins >/dev/null
+	assertEquals 'has required config and optional' 'config_foo' "${ap_local_plugins[*]}"
 }
 
 test_ap_summary() {
