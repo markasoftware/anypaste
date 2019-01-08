@@ -7,7 +7,7 @@
 # shellcheck disable=2128
 
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.0-rc1'
+ap_version_text='Anypaste 1.1'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
 
