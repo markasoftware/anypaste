@@ -7,7 +7,7 @@
 # shellcheck disable=2128
 
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.0-rc1'
+ap_version_text='Anypaste 1.1.1-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
 
@@ -972,7 +972,7 @@ function ap_collect_file_metadata {
 	ap_mime=$(file --mime-type --brief "$ap_path")
 	if command -v ffprobe >/dev/null
 	then
-		ap_ffprobe=$(ffprobe -show_streams -show_format "$ap_path" 2>&1) || ap_ffprobe=
+		ap_ffprobe=$(ffprobe -show_streams -show_format <"$ap_path" 2>&1) || ap_ffprobe=
 	else
 		ap_ffprobe=
 		echo 'NOTE: Ffprobe/ffmpeg is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
