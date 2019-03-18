@@ -279,7 +279,7 @@ function imgur {
 		echo 'deletable'
 		echo 'direct'
 		echo '[config]'
-		echo 'optional|imgur_client_id|Your Imgur API client ID. Your secret key is not needed, yay! Default: c7e65b324a5ebe8'
+		echo 'optional|imgur_client_id|Your Imgur API client ID. Your secret key is not needed, yay!'
 		;;
 	esac
 }
@@ -438,8 +438,8 @@ function gfycat {
 		do
 			sleep 4
 			gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
-				echo 'Status check request did not return HTTP 200!' >&2
-				echo "Your file might end up here anyway: https://gfycat.com/$gfy_name" >&2
+				echo "${ap_ERROR}Status check request did not return HTTP 200!" >&2
+				echo "Your file might end up here anyway: https://gfycat.com/$gfy_name${ap_RESET}" >&2
 				return 1;
 			}
 			[[ $gfy_status == *complete* ]] && break
@@ -658,11 +658,11 @@ function ap_search_plugins {
 function ap_i_select_plugin {
 	# fail if no plugins
 	[[ ${#ap_i_select_plugin_arg[@]} -eq 0 ]] && return 1
-	# TODO: remove this, I don't think it does anything anymore
 	if [[ ${#ap_i_select_plugin_arg[@]} -eq 1 ]] 
 	then
 		echo "Only one compatible plugin was found: $ap_i_select_plugin_arg" >&2
-		ap_plugin="$ap_i_select_plugin_arg"
+		ap_i_select_plugin_return="$ap_i_select_plugin_arg"
+		return
 	fi
 	echo -n 'The following plugins were found:' >&2
 	printf " '%s'" "${ap_i_select_plugin_arg[@]}" >&2
@@ -682,8 +682,9 @@ function ap_i_select_plugin {
 		ap_search_plugins "$ap_search_term"
 		if [[ ${#ap_search_plugins_return[@]} -gt 1 ]]
 		then
-			echo -n 'Multiple plugins matched that search, try again:' >&2
+			echo -n "${ap_WARNING}Multiple plugins matched that search:" >&2
 			printf " '%s'" "${ap_search_plugins_return[@]}" >&2
+			echo -n "${ap_RESET}" >&2
 		elif [[ ${#ap_search_plugins_return[@]} == 0 ]]
 		then
 			echo "${ap_WARNING}No plugins matched that search, try again.${ap_RESET}" >&2
@@ -835,9 +836,9 @@ function upload_plugin {
 		ap_last_stdout=$(</tmp/ap_stdout_cache)
 		# shellcheck disable=2154
 		[[ $ap_hook_policy == greedy ]] && run_hooks
-		echo 'Upload complete.' >&2
+		echo "${ap_SUCCESS}Upload complete.${ap_RESET}" >&2
 	else
-		echo "Plugin failed with error code $plugin_exit_code" >&2
+		echo "${ap_ERROR}Plugin failed with error code $plugin_exit_code${ap_RESET}" >&2
 		return 1 
 	fi
 }
