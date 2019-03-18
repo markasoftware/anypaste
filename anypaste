@@ -6,12 +6,6 @@
 
 # shellcheck disable=2128
 
-ap_RESET=$'\033[0m'
-ap_ERROR=$'\033[31m'
-ap_SUCCESS=$'\033[32m'
-ap_WARNING=$'\033[33m'
-ap_NOTE=$'\033[36m'
-
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
 ap_version_text='Anypaste 1.1.1-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
@@ -579,6 +573,14 @@ function ap_notify_hook {
 
 # FUNCTIONS
 
+function ap_color_vars {
+	ap_RESET=$'\033[0m'
+	ap_ERROR=$'\033[31m'
+	ap_SUCCESS=$'\033[32m'
+	ap_WARNING=$'\033[33m'
+	ap_NOTE=$'\033[36m'
+}
+
 # note: make sure the plugin exists first (i.e, run it after filter_plugins)
 # @param $1: Name of the plugin
 # @param $2: Name of the section
@@ -749,7 +751,7 @@ function ap_list_text {
 			ap_repeat_char ' ' $((text_width-${#line}))
 			line="${line}${ap_repeat_char_return}"
 		fi
-		echo "${ap_list_v_char}${pad_str}${ap_NOTE}${line}${ap_RESET}${pad_str}${ap_list_v_char}"
+		echo "${ap_list_v_char}${pad_str}${line}${pad_str}${ap_list_v_char}"
 	done
 }
 
@@ -849,7 +851,7 @@ function ap_filter_local_plugins {
 	ap_filter_plugins_return=()
 	for ap_plugin in "${ap_local_plugins[@]}"
 	do
-		command -v "$ap_plugin" > /dev/null || { echo "WARNING: Plugin $ap_plugin could not be found! You may need to check your config file." >&2 && continue; }
+		command -v "$ap_plugin" > /dev/null || { echo "${ap_WARNING}WARNING: Plugin $ap_plugin could not be found! You may need to check your config file.${ap_RESET}" >&2 && continue; }
 		"$ap_plugin" check_eligibility || continue
 		if ap_get_section "$ap_plugin" 'config'
 		then
@@ -861,8 +863,8 @@ function ap_filter_local_plugins {
 				then
 					case "${config_parts[0]}" in
 					"required")
-						echo "Missing required config option for '$ap_plugin': '$config_var_name'" >&2
-						echo "Run 'anypaste -p $ap_plugin -l' to see more information about this plugin." >&2
+						echo "${ap_WARNING}Missing required config option for '$ap_plugin': '$config_var_name'" >&2
+						echo "Run 'anypaste -p $ap_plugin -l' to see more information about this plugin.${ap_RESET}" >&2
 						# aaaahhahah
 						continue 2
 						;;
@@ -912,7 +914,7 @@ function ap_filter_global_plugins {
 # @params: ALL file-specific environment variables
 # @param: ap_local_plugins: list of plugins filtered by global stuff already
 function upload_loop {
-	echo "Current file: $ap_user_path" >&2
+	echo "${ap_NOTE}Current file: $ap_user_path${ap_RESET}" >&2
 	if $ap_i
 	then
 		# INTERACTIVE
@@ -1005,14 +1007,14 @@ function ap_upload_files {
 		then
 			if $found_stdin
 			then
-				echo 'You specified stdin more than once!' >&2
-				echo 'All but the first will be ignored.' >&2
+				echo "${ap_ERROR}You specified stdin more than once!" >&2
+				echo "All but the first will be ignored.${ap_RESET}" >&2
 				ap_failed_ul
 				continue
 			fi
 			if [[ -t 0 ]]
 			then
-				echo 'Stdin specified, but stdin is a terminal!' >&2
+				echo "${ap_ERROR}Stdin specified, but stdin is a terminal!${ap_RESET}" >&2
 				continue
 			fi
 			ap_path="/tmp/anypaste-$RANDOM"
@@ -1021,8 +1023,8 @@ function ap_upload_files {
 		# NOT READABLE
 		elif [[ ! -r "$ap_user_path" ]]
 		then
-			echo "$ap_user_path is not readable!" >&2
-			echo 'Make sure it exists and you have proper permissions for it.' >&2
+			echo "${ap_ERROR}$ap_user_path is not readable!" >&2
+			echo "Make sure it exists and you have proper permissions for it.${ap_RESET}" >&2
 			ap_exit_code=101
 			ap_failed_ul
 			continue
@@ -1261,6 +1263,7 @@ function ap_main_inner {
 	ap_hooks=()
 	ap_hook_policy='lazy'
 	ap_unicode='true'
+	ap_color='true'
 
 	ap_parse_args
 	$ap_help && echo "$ap_help_text" && return
@@ -1276,6 +1279,8 @@ function ap_main_inner {
 	# this could fail if no config file, hence why 2> /dev/null
 	# shellcheck disable=1090
 	source "$ap_cfg" 2> /dev/null
+
+	$ap_color && ap_color_vars
 
 	[[ ${#ap_plugins[@]} == 0 ]] && echo "${ap_ERROR}No plugins listed in config!${ap_RESET}" && return 100
 
