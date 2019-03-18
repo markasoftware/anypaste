@@ -6,6 +6,12 @@
 
 # shellcheck disable=2128
 
+ap_RESET=$'\033[0m'
+ap_ERROR=$'\033[31m'
+ap_SUCCESS=$'\033[32m'
+ap_WARNING=$'\033[33m'
+ap_NOTE=$'\033[36m'
+
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
 ap_version_text='Anypaste 1.1.1-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
@@ -18,17 +24,17 @@ shopt -s extglob
 function check_size {
 	if ! [[ $ap_size -lt $1 ]]
 	then
-		echo "WARNING: File is of compatible type for plugin '$ap_plugin', but is above size limit of $1 bytes" >&2
+		echo "${ap_WARNING}WARNING: File is of compatible type for plugin '$ap_plugin', but is above size limit of $1 bytes${ap_RESET}" >&2
 		return 1
 	fi
 }
 
 function curl_form_upload {
-	curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+	curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
 }
 
 function curl_file_upload {
-	curl "-X$1" -#fT "$2" "$3" || { echo 'ERROR: Upload request did not return HTTP 200!' >&2 && return 1; }
+	curl "-X$1" -#fT "$2" "$3" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
 }
 
 # string json, string key -> string value
@@ -542,7 +548,7 @@ function ap_copy_hook {
 	then
 		echo -n "$ap_copy_me" | xclip -selection clipboard
 	else
-		echo 'WARNING: no suitable program to copy text was found on your system. Please report a bug!'
+		echo "${ap_WARNING}WARNING: no suitable program to copy text was found on your system. Please report a bug!${ap_RESET}"
 	fi
 }
 
@@ -567,7 +573,7 @@ function ap_notify_hook {
 		osascript -e "display notification \"$notification_text\" with title \"$notification_title\""
 	else
 		command -v notify-send >/dev/null && notify-send -a anypaste -t 8000 "$notification_title" "$notification_text" || \
-			echo 'WARNING: Install notify-send if you want --notify to work.'
+			echo "${ap_WARNING}WARNING: Install notify-send if you want --notify to work.${ap_RESET}"
 	fi
 }
 
@@ -650,6 +656,7 @@ function ap_search_plugins {
 function ap_i_select_plugin {
 	# fail if no plugins
 	[[ ${#ap_i_select_plugin_arg[@]} -eq 0 ]] && return 1
+	# TODO: remove this, I don't think it does anything anymore
 	if [[ ${#ap_i_select_plugin_arg[@]} -eq 1 ]] 
 	then
 		echo "Only one compatible plugin was found: $ap_i_select_plugin_arg" >&2
@@ -677,7 +684,7 @@ function ap_i_select_plugin {
 			printf " '%s'" "${ap_search_plugins_return[@]}" >&2
 		elif [[ ${#ap_search_plugins_return[@]} == 0 ]]
 		then
-			echo 'No plugins matched that search, try again.' >&2
+			echo "${ap_WARNING}No plugins matched that search, try again.${ap_RESET}" >&2
 		else
 			ap_i_select_plugin_return="$ap_search_plugins_return"
 			break
@@ -742,7 +749,7 @@ function ap_list_text {
 			ap_repeat_char ' ' $((text_width-${#line}))
 			line="${line}${ap_repeat_char_return}"
 		fi
-		echo "${ap_list_v_char}${pad_str}${line}${pad_str}${ap_list_v_char}"
+		echo "${ap_list_v_char}${pad_str}${ap_NOTE}${line}${ap_RESET}${pad_str}${ap_list_v_char}"
 	done
 }
 
@@ -945,7 +952,7 @@ function upload_loop {
 		do
 			upload_plugin && return
 		done
-		echo 'No compatible plugins found, or all compatible plugins failed.' >&2
+		echo "${ap_ERROR}No compatible plugins found, or all compatible plugins failed.${ap_RESET}" >&2
 		return 1
 	fi
 }
@@ -1079,7 +1086,7 @@ CFG
 # @param $ap_fail_uls: array of failed upload human names
 function ap_summary {
 	# SUCCESSES
-	echo -n 'Sucessfully uploaded:' >&2
+	echo -n "${ap_SUCCESS}Sucessfully uploaded:" >&2
 	if [[ ${#ap_ok_uls[@]} -gt 0 ]]
 	then
 		printf " '%s'" "${ap_ok_uls[@]}" >&2
@@ -1088,14 +1095,14 @@ function ap_summary {
 		echo -n ' None' >&2
 	fi
 
-	echo >&2
+	echo "${ap_RESET}" >&2
 
 	# FAILURES
 	if [[ ${#ap_fail_uls[@]} -gt 0 ]]
 	then
-		echo -n 'Failed to upload:' >&2
+		echo -n "${ap_ERROR}Failed to upload:" >&2
 		printf " '%s'" "${ap_fail_uls[@]}" >&2
-		echo >&2
+		echo "${ap_RESET}" >&2
 		[[ ${#ap_ok_uls[@]} -gt 0 ]] && ((ap_exit_code+=100))
 	fi
 }
@@ -1270,7 +1277,7 @@ function ap_main_inner {
 	# shellcheck disable=1090
 	source "$ap_cfg" 2> /dev/null
 
-	[[ ${#ap_plugins[@]} == 0 ]] && echo 'No plugins listed in config!' && return 100
+	[[ ${#ap_plugins[@]} == 0 ]] && echo "${ap_ERROR}No plugins listed in config!${ap_RESET}" && return 100
 
 	$ap_copy && ap_hooks+=('ap_copy_hook')
 	$ap_notify && ap_hooks+=('ap_notify_hook')
@@ -1290,7 +1297,7 @@ function ap_main_inner {
 		fi
 		if [[ -t 0 ]]
 		then
-			echo 'ERROR: No files specified, and stdin is a terminal' >&2
+			echo "${ap_ERROR}ERROR: No files specified, and stdin is a terminal${ap_RESET}" >&2
 			# we put this to stderr despite putting help text on stdout when
 			# -h or --help is passed because a program might not expect it here
 			echo "$ap_help_text" >&2
