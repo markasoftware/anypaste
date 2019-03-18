@@ -809,7 +809,7 @@ $ap_get_section_return"
 function ap_list {
 	if [[ -t 1 ]]
 	then
-		ap_list_inner 'false'| $PAGER
+		ap_list_inner 'false'| ${PAGER:-less}
 	else
 		ap_list_inner 'true'
 	fi
