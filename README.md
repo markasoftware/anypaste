@@ -8,7 +8,7 @@ Anypaste is a file sharing site aggregator for *nix-like systems (Mac, Linux, BS
 
 ## Install
 
-Anypaste is just a shell script. It's hosted at `https://anypaste.xyz/sh`. A quick command to install it is: `sudo curl -o /usr/bin/anypaste https://anypaste.xyz/sh && sudo chmod +x /usr/bin/anypaste`.
+Anypaste is just a shell script. It's hosted at `https://anypaste.xyz/sh`. A quick command to install it is: `sudo curl -Lo /usr/bin/anypaste https://anypaste.xyz/sh && sudo chmod +x /usr/bin/anypaste`.
 
 ## Basic Usage Examples
 
