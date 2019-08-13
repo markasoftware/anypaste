@@ -178,7 +178,7 @@ function transfersh {
 	upload)
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
-		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
+		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
 		echo >&2
 		echo "Direct: $transfersh_link"
 		echo
