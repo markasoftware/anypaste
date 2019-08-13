@@ -818,7 +818,7 @@ $ap_get_section_return"
 function ap_list {
 	if [[ -t 1 ]]
 	then
-		ap_list_inner 'false'| ${PAGER:-less}
+		ap_list_inner 'false' | ${PAGER:-less}
 	else
 		ap_list_inner 'true'
 	fi
@@ -1276,6 +1276,7 @@ function ap_main_inner {
 	ap_color='true'
 
 	ap_parse_args
+	$ap_list && exec 2>/dev/null
 	$ap_help && echo "$ap_help_text" && return
 	$ap_version && echo "$ap_version_text" && return
 
