@@ -494,31 +494,28 @@ function docdroid {
 	esac
 }
 
-function pomf {
+function dmca_gripe {
 	case $1 in
 	check_eligibility)
-		# that's right, 5gb motherfuckers
-		check_size 5120000000
+		check_size 1025000000
 		;;
 	upload)
-		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}") || return 1
-		pomf_json=$(tr -d \\n <<< "$pomf_json")
-		pomf_link=$(json_parse "$pomf_json" 'url')
+		dmca_gripe_json=$(curl_form_upload 'files[]' 'https://dmca.gripe/api/upload') || return 1
+		dmca_gripe_json=$(tr -d \\n <<< "$dmca_gripe_json")
+		dmca_gripe_link=$(json_parse "$dmca_gripe_json" 'url')
 		echo >&2
-		echo "Direct: $pomf_link"
+		echo "Direct: $dmca_gripe_link"
 		echo
 		;;
 	get_info)
 		echo '[name]'
-		echo 'Pomf'
+		echo 'Dmca.gripe'
 		echo '[description]'
-		echo 'Pomf is an open-source generic upload host, github.com/pomf/pomf. Many "pomf" sites actually are incompatible with the real pomf, so make sure you use one that does. dmca.gripe is used by default.'
+		echo 'A generic file hosting site powered by github.com/pomf/pomf.'
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
 		echo 'direct'
-		echo '[config]'
-		echo 'optional|pomf_upload_url|The path to the upload URL on your pomf host of choice. Default: https://dmca.gripe/api/upload'
 	esac
 }
 
@@ -1075,7 +1072,7 @@ function ap_create_config {
 # 'instaudio' 'clyp' # Audio
 # 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
-# 'pomf' 'transfersh' 'fileio' # Generic
+# 'dmca_gripe' 'transfersh' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1268,7 +1265,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'clyp' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'

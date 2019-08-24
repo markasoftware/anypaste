@@ -38,8 +38,8 @@ function test_imgur() {
 	assertLabelPatternEquals 'imgur delete link' 'Delete' 'https://imgur.com/delete/+([0-9a-zA-Z])'
 }
 
-function test_pomf() {
-	uploadAndAssert pomf "$webm_fixture"
+function test_dmca_gripe() {
+	uploadAndAssert dmca_gripe "$webm_fixture"
 	assertDirectLinkWorks 'uploads webm fixture' "$webm_fixture"
 }
 
