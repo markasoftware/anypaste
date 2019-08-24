@@ -20,11 +20,11 @@ function test_ixio() {
 function test_vgyme() {
 	uploadAndAssert vgyme "$png_fixture"
 	# Vgyme's direct links aren't direct -- it reencodes the image (even for png)
-	assertLabelPatternEquals 'vgyme direct link' 'Direct' 'https://vgy.me/+([0-9a-zA-Z]).png'
+	assertLabelPatternEquals 'vgyme direct link' 'Direct' 'https://i.vgy.me/+([0-9a-zA-Z]).png'
 	assertLabelPatternEquals 'vgyme normal link' 'Link' 'https://vgy.me/u/+([0-9a-zA-Z])'
 	assertLabelPatternEquals 'vgyme delete link' 'Delete' 'https://vgy.me/delete/+([0-9a-zA-Z])'
 }
-	
+
 function test_tinyimg() {
 	uploadAndAssert tinyimg "$jpeg_fixture"
 	assertDirectLinkWorks 'uploads jpeg fixture' "$jpeg_fixture"
@@ -38,8 +38,8 @@ function test_imgur() {
 	assertLabelPatternEquals 'imgur delete link' 'Delete' 'https://imgur.com/delete/+([0-9a-zA-Z])'
 }
 
-function test_pomf() {
-	uploadAndAssert pomf "$webm_fixture"
+function test_dmca_gripe() {
+	uploadAndAssert dmca_gripe "$webm_fixture"
 	assertDirectLinkWorks 'uploads webm fixture' "$webm_fixture"
 }
 
@@ -52,12 +52,6 @@ function test_fileio() {
 	# cause why not, and it's smaller than the WAV
 	uploadAndAssert fileio "$mp3_fixture"
 	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
-}
-
-function test_instaudio() {
-	uploadAndAssert instaudio "$wav_fixture"
-	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
-	assertLabelPatternEquals 'instaud.io normal link' 'Link' 'https://instaud.io/+([0-9a-zA-Z])'
 }
 
 function test_clyp() {

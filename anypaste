@@ -7,8 +7,9 @@
 # shellcheck disable=2128
 
 export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.1'
+ap_version_text='Anypaste 1.1.2'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
+ap_tmpdir=${TMPDIR:-/tmp}
 shopt -s extglob
 
 # BEGIN PLUGINS
@@ -177,7 +178,7 @@ function transfersh {
 	upload)
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
-		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!';
+		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
 		echo >&2
 		echo "Direct: $transfersh_link"
 		echo
@@ -280,38 +281,6 @@ function imgur {
 		echo 'direct'
 		echo '[config]'
 		echo 'optional|imgur_client_id|Your Imgur API client ID. Your secret key is not needed, yay!'
-		;;
-	esac
-}
-
-function instaudio {
-	case $1 in
-	check_eligibility)
-		if [[ -n $ap_ffprobe ]]
-		then
-				[[ $ap_ffprobe == *format_name=@(mp3|ogg|wav)* ]] || return 1
-		else
-				[[ $ap_mime =~ 'audio/x-wav'|'audio/mpeg'|'audio/ogg' ]] || return 1
-		fi
-		check_size 15000000
-		;;
-	upload)
-		inst_json=$(curl_form_upload 'audio_file' 'https://instaud.io/new.json') || return 1
-		inst_redirect=$(json_parse "$inst_json" 'redirect_url')
-		ap_find_extension
-		echo >&2
-		echo "Link: https://instaud.io$inst_redirect"
-		[[ -n $ap_find_extension_return ]] && echo "Direct: https://instaud.io/_$inst_redirect.$ap_find_extension_return"
-		echo
-		;;
-	get_info)
-		echo '[name]'
-		echo 'instaud.io'
-		echo '[description]'
-		echo 'Audio host. Shows a nice waveform of the file when playing it back.'
-		echo '[tags]'
-		echo 'permanent'
-		echo 'direct'
 		;;
 	esac
 }
@@ -424,9 +393,9 @@ function gfycat {
 		# the file being uploaded must have the same name as the key
 		# since i don't know how to set it using curl options, I'm
 		# just using a symbolic link with the correct name.
-		ln -s "$ap_path" "/tmp/$gfy_name"
-		curl_file_upload 'PUT' "/tmp/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
-		rm -f "/tmp/$gfy_name"
+		ln -s "$ap_path" "$ap_tmpdir/$gfy_name"
+		curl_file_upload 'PUT' "$ap_tmpdir/$gfy_name" 'https://filedrop.gfycat.com' > /dev/null || return 1
+		rm -f "$ap_tmpdir/$gfy_name"
 		# We have to wait for encoding (unlike with streamable) because
 		# during encoding, if it has the same hash as another gfy, it
 		# returns the (different) link to the original gfy, and the new
@@ -493,31 +462,28 @@ function docdroid {
 	esac
 }
 
-function pomf {
+function dmca_gripe {
 	case $1 in
 	check_eligibility)
-		# that's right, 5gb motherfuckers
-		check_size 5120000000
+		check_size 1025000000
 		;;
 	upload)
-		pomf_json=$(curl_form_upload 'files[]' "${pomf_upload_url:-https://dmca.gripe/api/upload}") || return 1
-		pomf_json=$(tr -d \\n <<< "$pomf_json")
-		pomf_link=$(json_parse "$pomf_json" 'url')
+		dmca_gripe_json=$(curl_form_upload 'files[]' 'https://dmca.gripe/api/upload') || return 1
+		dmca_gripe_json=$(tr -d \\n <<< "$dmca_gripe_json")
+		dmca_gripe_link=$(json_parse "$dmca_gripe_json" 'url')
 		echo >&2
-		echo "Direct: $pomf_link"
+		echo "Direct: $dmca_gripe_link"
 		echo
 		;;
 	get_info)
 		echo '[name]'
-		echo 'Pomf'
+		echo 'Dmca.gripe'
 		echo '[description]'
-		echo 'Pomf is an open-source generic upload host, github.com/pomf/pomf. Many "pomf" sites actually are incompatible with the real pomf, so make sure you use one that does. dmca.gripe is used by default.'
+		echo 'A generic file hosting site powered by github.com/pomf/pomf.'
 		echo '[tags]'
 		echo 'private'
 		echo 'permanent'
 		echo 'direct'
-		echo '[config]'
-		echo 'optional|pomf_upload_url|The path to the upload URL on your pomf host of choice. Default: https://dmca.gripe/api/upload'
 	esac
 }
 
@@ -573,6 +539,11 @@ function ap_notify_hook {
 
 # FUNCTIONS
 
+# @param optionally, a file extension.
+function ap_mktemp {
+	mktemp -p "$ap_tmpdir" "anypaste.XXXXXXXXXX$1"
+}
+
 function ap_color_vars {
 	ap_RESET=$'\033[0m'
 	ap_ERROR=$'\033[31m'
@@ -592,7 +563,8 @@ function ap_color_vars {
 # In theory, we could use a hash function with a normal array, but AAAAHGH
 # Variable names are ap_sections_pluginname__sectionname
 function ap_get_section {
-	local requested_key="ap_sections_$1__$2"
+	local requested_key get_info_tmpfile
+	requested_key="ap_sections_$1__$2"
 	if [[ -z ${!requested_key} ]]
 	then
 		# http://mywiki.wooledge.org/BashFAQ/024
@@ -602,9 +574,10 @@ function ap_get_section {
 		local section
 		local buffer
 		local current_key
-		"$1" get_info > /tmp/ap_get_info
+		get_info_tmpfile=$(ap_mktemp)
+		"$1" get_info > "$get_info_tmpfile"
 		# we need a "fake" section at the end so that it flushes the final buffer
-		echo '[dummy]' >> /tmp/ap_get_info
+		echo '[dummy]' >> "$get_info_tmpfile"
 		while IFS= read -r line
 		do
 			# skip empty lines
@@ -627,7 +600,7 @@ function ap_get_section {
 			# section body
 			buffer="${buffer}${line}
 "
-		done < /tmp/ap_get_info
+		done < "$get_info_tmpfile"
 	fi
 	ap_get_section_return=${!requested_key}
 	[[ -n ${!requested_key} ]] && return 0 || return 1
@@ -658,7 +631,7 @@ function ap_search_plugins {
 function ap_i_select_plugin {
 	# fail if no plugins
 	[[ ${#ap_i_select_plugin_arg[@]} -eq 0 ]] && return 1
-	if [[ ${#ap_i_select_plugin_arg[@]} -eq 1 ]] 
+	if [[ ${#ap_i_select_plugin_arg[@]} -eq 1 ]]
 	then
 		echo "Only one compatible plugin was found: $ap_i_select_plugin_arg" >&2
 		ap_i_select_plugin_return="$ap_i_select_plugin_arg"
@@ -810,7 +783,7 @@ $ap_get_section_return"
 function ap_list {
 	if [[ -t 1 ]]
 	then
-		ap_list_inner 'false'| ${PAGER:-less}
+		ap_list_inner 'false' | ${PAGER:-less}
 	else
 		ap_list_inner 'true'
 	fi
@@ -826,20 +799,21 @@ function run_hooks {
 # @param $ap_plugin: name of plugin
 # @param $ap_hook_policy
 function upload_plugin {
-	local plugin_exit_code
+	local plugin_exit_code stdout_cache_tmpfile
 	echo "Attempting to upload with plugin '$ap_plugin'" >&2
 	# TODO: if we ever unit test things, make sure we fall back if a plugin fails
-	$ap_plugin upload | tee /tmp/ap_stdout_cache
+	stdout_cache_tmpfile=$(ap_mktemp)
+	$ap_plugin upload | tee "$stdout_cache_tmpfile"
 	plugin_exit_code=${PIPESTATUS[0]}
 	if [[ $plugin_exit_code == 0 ]]
 	then
-		ap_last_stdout=$(</tmp/ap_stdout_cache)
+		ap_last_stdout=$(<"$stdout_cache_tmpfile")
 		# shellcheck disable=2154
 		[[ $ap_hook_policy == greedy ]] && run_hooks
 		echo "${ap_SUCCESS}Upload complete.${ap_RESET}" >&2
 	else
 		echo "${ap_ERROR}Plugin failed with error code $plugin_exit_code${ap_RESET}" >&2
-		return 1 
+		return 1
 	fi
 }
 
@@ -1018,7 +992,7 @@ function ap_upload_files {
 				echo "${ap_ERROR}Stdin specified, but stdin is a terminal!${ap_RESET}" >&2
 				continue
 			fi
-			ap_path="/tmp/anypaste-$RANDOM"
+			ap_path=$(ap_mktemp)
 			cat > "$ap_path"
 			found_stdin='true'
 		# NOT READABLE
@@ -1033,7 +1007,7 @@ function ap_upload_files {
 		elif [[ -d "$ap_user_path" ]]
 		then
 			echo "$ap_user_path is a directory, creating tarball..." >&2
-			ap_path="/tmp/anypaste-$RANDOM.tar.gz"
+			ap_path=$(ap_mktemp .tar.gz)
 			tar czf "$ap_path" -C "$ap_user_path" .
 		# NOTHING SPECIAL
 		else
@@ -1063,10 +1037,10 @@ function ap_create_config {
 # ap_plugins=(
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
 # 'tinyimg' 'imgur' 'vgyme' # Images
-# 'instaudio' 'clyp' # Audio
+# 'clyp' # Audio
 # 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
-# 'pomf' 'transfersh' 'fileio' # Generic
+# 'dmca_gripe' 'transfersh' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1259,7 +1233,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'instaudio' 'clyp' 'hastebin' 'ixio' 'docdroid' 'pomf' 'transfersh' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
@@ -1267,6 +1241,7 @@ function ap_main_inner {
 	ap_color='true'
 
 	ap_parse_args
+	$ap_list && exec 2>/dev/null
 	$ap_help && echo "$ap_help_text" && return
 	$ap_version && echo "$ap_version_text" && return
 
@@ -1325,7 +1300,7 @@ function ap_main {
 	local exit_code
 	ap_main_inner "$@"
 	exit_code="$?"
-	rm -f /tmp/ap_*
+	rm -f "$ap_tmpdir/anypaste.*"
 	return "$exit_code"
 }
 
