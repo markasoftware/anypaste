@@ -211,6 +211,12 @@ test_json_parse() {
 
 	out=$(json_parse '{"hello":"world","world":"hello"}' 'world')
 	assertEquals 'key name appears earlier' 'hello' "$out"
+
+	out=$(json_parse '{
+             "hello": "world",
+             "bye": "sonny"
+          }' 'bye')
+	assertEquals 'multi line' 'sonny' "$out"
 }
 
 test_upload_loop() {
