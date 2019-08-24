@@ -54,12 +54,6 @@ function test_fileio() {
 	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
 }
 
-function test_instaudio() {
-	uploadAndAssert instaudio "$wav_fixture"
-	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
-	assertLabelPatternEquals 'instaud.io normal link' 'Link' 'https://instaud.io/+([0-9a-zA-Z])'
-}
-
 function test_clyp() {
 	uploadAndAssert clyp "$mp3_fixture"
 	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
