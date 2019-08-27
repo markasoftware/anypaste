@@ -493,12 +493,12 @@ function filemail {
 		check_size 50000000000
 		;;
 	upload)
-		local id key transfer_global_url transfer_base_url transfer_host init chunk_size chunk_count job_count complete link direct
-		chunk_size=5242880
-		# TODO: make it a config option
-		job_count=4
-		chunk_count=$(( ap_size / chunk_size ))
-		(( ap_size % chunk_size != 0)) && (( chunk_count++ ))
+		local id key transfer_global_url transfer_base_url transfer_host init chunk_count complete link direct
+		filemail_chunk_size=${filemail_chunk_size:-5242880}
+		filemail_job_count=${filemail_job_count:-4}
+
+		chunk_count=$(( ap_size / filemail_chunk_size ))
+		(( ap_size % filemail_chunk_size != 0)) && (( chunk_count++ ))
 		init=$(curl -sf --data 'sourcedetails=plupload(html5)+%40+https%3A%2F%2Fwww.filemail.com%2F&days=7&confirmation=true' 'https://www.filemail.com/api/transfer/initialize')
 		if [[ $? -eq 22 ]]
 		then
@@ -513,15 +513,16 @@ function filemail {
 		transfer_base_url=$(json_parse "$init" 'transferurl')
 		transfer_host=${transfer_base_url%/*}
 		# Other required fields are per-chunk and set in chunk loop
-		transfer_global_url="$transfer_base_url?transferid=$id&transferkey=$key&runtime=html5&chunksize=$chunk_size&thefilename=$ap_human_name&totalsize=$ap_size&chunks=$chunk_count&retry=0"
+		transfer_global_url="$transfer_base_url?transferid=$id&transferkey=$key&runtime=html5&chunksize=$filemail_chunk_size&thefilename=$ap_human_name_escaped&totalsize=$ap_size&chunks=$chunk_count&retry=0"
 		echo >&2
-		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$job_count" bash -c "
-			# TODO: not use mktemp
-			chunk_tmp_file=\$(mktemp)
+		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$filemail_job_count" bash -c "
+			# we can't use ap_mktemp here because functions are ephemeral
+			chunk_tmp_file=\$(mktemp -p '$ap_tmpdir' 'anypaste.XXXXXXXXXX')
 			echo -ne \"\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
-			tail -c \"+\$(( $chunk_size * \$1 ))\" < '$ap_path' | head -c $chunk_size > \"\$chunk_tmp_file\"
+			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
 			transfer_local_url='$transfer_global_url&chunk='\$1
 			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" || { echo Chunk upload failed!; exit 255; }
+			rm -f \"$chunk_tmp_file\"
 		" filemail_upload_worker
 		# shellcheck disable=2181
 		if (( $? != 0 ))
@@ -549,6 +550,9 @@ function filemail {
 		echo '[tags]'
 		echo 'private'
 		echo 'direct'
+		echo '[config]'
+		echo 'optional|filemail_job_count|The maximum number of chunk uploads to perform in parallel. Defaults to 4.'
+		echo 'optional|filemail_chunk_size|The maximum chunk size. Defaults to 5242880 and probably should not be changed.'
 	esac
 }
 
@@ -630,6 +634,7 @@ function ap_notify_hook {
 # FUNCTIONS
 
 # @param optionally, a file extension.
+# If this ever gets changed, make the change inside the filemail pluin xargs too.
 function ap_mktemp {
 	mktemp -p "$ap_tmpdir" "anypaste.XXXXXXXXXX$1"
 }
