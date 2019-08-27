@@ -219,6 +219,15 @@ test_json_parse() {
 	assertEquals 'multi line' 'sonny' "$out"
 }
 
+test_url_encode() {
+	ap_url_encode 'yessir'
+	assertEquals "$ap_url_encode_return" yessir
+	ap_url_encode 'yes sir'
+	assertEquals "$ap_url_encode_return" 'yes%20sir'
+	ap_url_encode 'yes.sir'
+	assertEquals "$ap_url_encode_return" yes.sir
+}
+
 test_upload_loop() {
 	ap_i=false
 	ap_f=false

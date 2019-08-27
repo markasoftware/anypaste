@@ -6,7 +6,7 @@
 
 # shellcheck disable=2128
 
-export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
+export ap_version ap_mac ap_path ap_human_name ap_human_name_escaped ap_mime ap_size ap_plugin ap_last_stdout
 ap_version_text='Anypaste 1.1.2-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 ap_tmpdir=${TMPDIR:-/tmp}
@@ -53,6 +53,30 @@ function json_parse {
 		infernal_agony=${infernal_agony%%[ ,\}]*}
 	fi
 	echo "$infernal_agony"
+}
+
+# string -> url-encoded string
+# param unencoded string
+# @return $ap_url_encode_return the encoded string
+# from https://stackoverflow.com/a/10660730
+ap_url_encode() {
+	local strlen=${#1}
+	ap_url_encode_return=''
+	local pos c o
+
+	for (( pos=0 ; pos<strlen ; pos++ ))
+	do
+		c=${1:$pos:1}
+		case "$c" in
+			[-_.~a-zA-Z0-9])
+				o=$c
+				;;
+			*)
+				printf -v o '%%%02x' "'$c"
+				;;
+		esac
+		ap_url_encode_return+=$o
+	done
 }
 
 # @param ALL env vars about a path
@@ -176,7 +200,7 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
+		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name_escaped") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
 		echo >&2
@@ -1028,6 +1052,8 @@ function ap_collect_file_metadata {
 		echo 'NOTE: Ffprobe/ffmpeg is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
 	fi
 	ap_human_name=${ap_n:-$(basename "$ap_path")}
+	ap_url_encode "$ap_human_name"
+	ap_human_name_escaped=$ap_url_encode_return
 	ap_size=$(wc -c < "$ap_path")
 }
 
