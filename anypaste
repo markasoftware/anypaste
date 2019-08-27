@@ -469,16 +469,19 @@ function filemail {
 		check_size 50000000000
 		;;
 	upload)
-		local id key transfer_global_url transfer_base_url transfer_local_url transfer_host init chunk_size chunk_count complete link direct
-		set -x
+		local id key transfer_global_url transfer_base_url transfer_host init chunk_size chunk_count job_count complete link direct
 		chunk_size=5242880
+		# TODO: make it a config option
+		job_count=4
 		chunk_count=$(( ap_size / chunk_size ))
 		(( ap_size % chunk_size != 0)) && (( chunk_count++ ))
 		init=$(curl -sf --data 'sourcedetails=plupload(html5)+%40+https%3A%2F%2Fwww.filemail.com%2F&days=7&confirmation=true' 'https://www.filemail.com/api/transfer/initialize')
 		if [[ $? -eq 22 ]]
 		then
-			echo 'Filemail initialization failed!' >&2
-			echo 'More likely than not, you exceeded your daily limit of two uploads per IP.' >&2
+			echo >&2
+			echo "${ap_ERROR}Filemail initialization failed!" >&2
+			echo "More likely than not, you exceeded your daily limit of two uploads per IP.$ap_RESET" >&2
+			echo >&2
 			return 1
 		fi
 		id=$(json_parse "$init" 'transferid')
@@ -487,16 +490,21 @@ function filemail {
 		transfer_host=${transfer_base_url%/*}
 		# Other required fields are per-chunk and set in chunk loop
 		transfer_global_url="$transfer_base_url?transferid=$id&transferkey=$key&runtime=html5&chunksize=$chunk_size&thefilename=$ap_human_name&totalsize=$ap_size&chunks=$chunk_count&retry=0"
-		chunk_tmp_file=$(ap_mktemp)
 		echo >&2
-		for chunk_c in $(seq 0 $(( chunk_count - 1 )))
-		do
-			echo -ne "\rUploading chunk $(( chunk_c + 1)) of $chunk_count." >&2
-			tail -c "+$(( chunk_size * chunk_c ))" < "$ap_path" | head -c "$chunk_size" > "$chunk_tmp_file"
-			transfer_local_url="$transfer_global_url&chunk=$chunk_c"
-			curl -sfXPOST --data-binary "@$chunk_tmp_file" -H 'Content-Type: application/octet-stream' "$transfer_local_url" || return 1
-			rm -f "$chunk_c_file"
-		done
+		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$job_count" bash -c "
+			# TODO: not use mktemp
+			chunk_tmp_file=\$(mktemp)
+			echo -ne \"\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
+			tail -c \"+\$(( $chunk_size * \$1 ))\" < '$ap_path' | head -c $chunk_size > \"\$chunk_tmp_file\"
+			transfer_local_url='$transfer_global_url&chunk='\$1
+			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" || { echo Chunk upload failed!; exit 255; }
+		" filemail_upload_worker
+		# shellcheck disable=2181
+		if (( $? != 0 ))
+		then
+			echo 'Some chunk uploads failed.'
+			return 1
+		fi
 		echo >&2
 		echo 'Finishing upload.' >&2
 		complete=$(curl -sfXPOST --data "transferid=$id&transferkey=$key&failed=false" 'https://www.filemail.com/api/transfer/complete')
@@ -513,7 +521,7 @@ function filemail {
 		echo '[name]'
 		echo 'Filemail'
 		echo '[description]'
-		echo 'A generic file host supporting up to 50GB files (!!). Files are deleted after a week, though, and there is a weird chunked upload system.'
+		echo 'A generic file host supporting up to 50GB files (!!). There is a two upload-per-IP-per-day limit, however, and all uploads are deleted after one week. This plugin supports parallel chunk uploading, just like the official HTML5 client.'
 		echo '[tags]'
 		echo 'private'
 		echo 'direct'
