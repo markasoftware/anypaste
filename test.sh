@@ -211,6 +211,21 @@ test_json_parse() {
 
 	out=$(json_parse '{"hello":"world","world":"hello"}' 'world')
 	assertEquals 'key name appears earlier' 'hello' "$out"
+
+	out=$(json_parse '{
+             "hello": "world",
+             "bye": "sonny"
+          }' 'bye')
+	assertEquals 'multi line' 'sonny' "$out"
+}
+
+test_url_encode() {
+	ap_url_encode 'yessir'
+	assertEquals "$ap_url_encode_return" yessir
+	ap_url_encode 'yes sir'
+	assertEquals "$ap_url_encode_return" 'yes%20sir'
+	ap_url_encode 'yes.sir'
+	assertEquals "$ap_url_encode_return" yes.sir
 }
 
 test_upload_loop() {

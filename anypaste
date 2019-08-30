@@ -6,7 +6,7 @@
 
 # shellcheck disable=2128
 
-export ap_version ap_mac ap_path ap_human_name ap_mime ap_size ap_plugin ap_last_stdout
+export ap_version ap_mac ap_path ap_human_name ap_human_name_escaped ap_mime ap_size ap_plugin ap_last_stdout
 ap_version_text='Anypaste 1.1.2-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 ap_tmpdir=${TMPDIR:-/tmp}
@@ -53,6 +53,30 @@ function json_parse {
 		infernal_agony=${infernal_agony%%[ ,\}]*}
 	fi
 	echo "$infernal_agony"
+}
+
+# string -> url-encoded string
+# param unencoded string
+# @return $ap_url_encode_return the encoded string
+# from https://stackoverflow.com/a/10660730
+ap_url_encode() {
+	local strlen=${#1}
+	ap_url_encode_return=''
+	local pos c o
+
+	for (( pos=0 ; pos<strlen ; pos++ ))
+	do
+		c=${1:$pos:1}
+		case "$c" in
+			[-_.~a-zA-Z0-9])
+				o=$c
+				;;
+			*)
+				printf -v o '%%%02x' "'$c"
+				;;
+		esac
+		ap_url_encode_return+=$o
+	done
 }
 
 # @param ALL env vars about a path
@@ -176,7 +200,7 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name") || return 1
+		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name_escaped") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
 		echo >&2
@@ -462,6 +486,76 @@ function docdroid {
 	esac
 }
 
+function filemail {
+	case $1 in
+	check_eligibility)
+		# 50GB??? I'll believe it when I see it...
+		check_size 50000000000
+		;;
+	upload)
+		local id key transfer_global_url transfer_base_url transfer_host init chunk_count complete link direct
+		filemail_chunk_size=${filemail_chunk_size:-5242880}
+		filemail_job_count=${filemail_job_count:-4}
+
+		chunk_count=$(( ap_size / filemail_chunk_size ))
+		(( ap_size % filemail_chunk_size != 0)) && (( chunk_count++ ))
+		init=$(curl -sf --data 'sourcedetails=plupload(html5)+%40+https%3A%2F%2Fwww.filemail.com%2F&days=7&confirmation=true' 'https://www.filemail.com/api/transfer/initialize')
+		if [[ $? -eq 22 ]]
+		then
+			echo >&2
+			echo "${ap_ERROR}Filemail initialization failed!" >&2
+			echo "More likely than not, you exceeded your daily limit of two uploads per IP.$ap_RESET" >&2
+			echo >&2
+			return 1
+		fi
+		id=$(json_parse "$init" 'transferid')
+		key=$(json_parse "$init" 'transferkey')
+		transfer_base_url=$(json_parse "$init" 'transferurl')
+		transfer_host=${transfer_base_url%/*}
+		# Other required fields are per-chunk and set in chunk loop
+		transfer_global_url="$transfer_base_url?transferid=$id&transferkey=$key&runtime=html5&chunksize=$filemail_chunk_size&thefilename=$ap_human_name_escaped&totalsize=$ap_size&chunks=$chunk_count&retry=0"
+		echo >&2
+		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$filemail_job_count" bash -c "
+			# we can't use ap_mktemp here because functions are ephemeral
+			chunk_tmp_file=\$(mktemp -p '$ap_tmpdir' 'anypaste.XXXXXXXXXX')
+			echo -ne \"\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
+			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
+			transfer_local_url='$transfer_global_url&chunk='\$1
+			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" || { echo Chunk upload failed!; exit 255; }
+			rm -f \"$chunk_tmp_file\"
+		" filemail_upload_worker
+		# shellcheck disable=2181
+		if (( $? != 0 ))
+		then
+			echo 'Some chunk uploads failed.'
+			return 1
+		fi
+		echo >&2
+		echo 'Finishing upload.' >&2
+		complete=$(curl -sfXPOST --data "transferid=$id&transferkey=$key&failed=false" 'https://www.filemail.com/api/transfer/complete')
+		link=$(json_parse "$complete" 'downloadurl')
+		# file_key includes filekey= at beginning
+		file_key=$(curl -sfL "$link" | grep -oE 'filekey=[a-zA-Z0-9_-]*')
+		direct="$transfer_host/api/file/get?$file_key"
+		echo >&2
+		echo "Link: $link"
+		echo "Direct: $direct"
+		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Filemail'
+		echo '[description]'
+		echo 'A generic file host supporting up to 50GB files (!!). There is a two upload-per-IP-per-day limit, however, and all uploads are deleted after one week. This plugin supports parallel chunk uploading, just like the official HTML5 client.'
+		echo '[tags]'
+		echo 'private'
+		echo 'direct'
+		echo '[config]'
+		echo 'optional|filemail_job_count|The maximum number of chunk uploads to perform in parallel. Defaults to 4.'
+		echo 'optional|filemail_chunk_size|The maximum chunk size. Defaults to 5242880 and probably should not be changed.'
+	esac
+}
+
 function dmca_gripe {
 	case $1 in
 	check_eligibility)
@@ -540,6 +634,7 @@ function ap_notify_hook {
 # FUNCTIONS
 
 # @param optionally, a file extension.
+# If this ever gets changed, make the change inside the filemail pluin xargs too.
 function ap_mktemp {
 	mktemp -p "$ap_tmpdir" "anypaste.XXXXXXXXXX$1"
 }
@@ -962,6 +1057,8 @@ function ap_collect_file_metadata {
 		echo 'NOTE: Ffprobe/ffmpeg is not installed. Compatibility checks for audio/video may be inaccurate.' >&2
 	fi
 	ap_human_name=${ap_n:-$(basename "$ap_path")}
+	ap_url_encode "$ap_human_name"
+	ap_human_name_escaped=$ap_url_encode_return
 	ap_size=$(wc -c < "$ap_path")
 }
 
@@ -1040,7 +1137,7 @@ function ap_create_config {
 # 'clyp' # Audio
 # 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
-# 'dmca_gripe' 'transfersh' 'fileio' # Generic
+# 'dmca_gripe' 'transfersh' 'filemail' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1233,7 +1330,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
@@ -1300,7 +1397,7 @@ function ap_main {
 	local exit_code
 	ap_main_inner "$@"
 	exit_code="$?"
-	rm -f "$ap_tmpdir/anypaste.*"
+	# rm -f "$ap_tmpdir"/anypaste.*
 	return "$exit_code"
 }
 
