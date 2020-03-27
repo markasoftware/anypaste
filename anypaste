@@ -504,8 +504,8 @@ function filemail {
 		complete=$(curl -sfXPOST --data "transferid=$id&transferkey=$key&failed=false" 'https://www.filemail.com/api/transfer/complete')
 		link=$(json_parse "$complete" 'downloadurl')
 		# file_key includes filekey= at beginning
-		file_key=$(curl -sfL "$link" | grep -oE 'filekey=[a-zA-Z0-9_-]*')
-		direct="$transfer_host/api/file/get?$file_key"
+		get_data=$(curl -sfXPOST --data "transferid=$id&skipreg=false&checkhashes=true&filesLimit=3000" "https://www.filemail.com/api/transfer/get")
+		direct=$(json_parse "$get_data" 'downloadurl')
 		echo >&2
 		echo "Link: $link"
 		echo "Direct: $direct"

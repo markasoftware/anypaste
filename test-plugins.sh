@@ -69,6 +69,11 @@ function test_gfycat() {
 	assertLabelPatternEquals 'gfycat normal link (mkv)' 'Link' 'https://gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])'
 }
 
+function test_filemail() {
+	uploadAndAssert filemail "$wav_fixture"
+	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
+}
+
 # TODO: tests for authenticated plugins
 
 # shellcheck disable=2034
