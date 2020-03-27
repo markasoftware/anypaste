@@ -343,7 +343,7 @@ function sendvid {
 		# Sendvid won't upload videos with certain file extensions, but will still encode them
 		# and function properly if uploaded as a .mp4
 		# Maybe time for them to switch to mime type checking?
-		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" http://sendvid.com/api/v1/videos) || return 1
+		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" https://sendvid.com/api/v1/videos) || return 1
 		sendvid_pub=$(json_parse "$sendvid_json" 'slug')
 		sendvid_priv=$(json_parse "$sendvid_json" 'secret')
 		echo >&2
