@@ -218,37 +218,6 @@ function transfersh {
 	esac
 }
 
-function vgyme {
-	case $1 in
-	check_eligibility)
-		# This is literally the worst possible way to design how the quotes should be used in a regex
-		[[ $ap_mime =~ 'image/jpeg'|'image/png'|'image/gif'|'image/x-ms-bmp' ]] && check_size 20000000
-		;;
-	upload)
-		vgyme_json=$(curl_form_upload 'file' 'https://vgy.me/upload') || return 1
-		vgyme_link=$(json_parse "$vgyme_json" 'url')
-		vgyme_direct=$(json_parse "$vgyme_json" 'image')
-		vgyme_delete=$(json_parse "$vgyme_json" 'delete')
-		echo >&2
-		echo "Link: $vgyme_link"
-		echo "Direct: $vgyme_direct"
-		echo "Delete: $vgyme_delete"
-		echo
-		;;
-	get_info)
-		echo '[name]'
-		echo 'vgy.me'
-		echo '[description]'
-		echo 'Image host, supports direct links and some editing.'
-		echo '[tags]'
-		echo 'private'
-		echo 'editable'
-		echo 'deletable'
-		echo 'direct'
-		;;
-	esac
-}
-
 function tinyimg {
 	case $1 in
 	check_eligibility)
@@ -1133,7 +1102,7 @@ function ap_create_config {
 # You'll need to uncomment (remove # at beginning of line) first
 # ap_plugins=(
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
-# 'tinyimg' 'imgur' 'vgyme' # Images
+# 'tinyimg' 'imgur' # Images
 # 'clyp' # Audio
 # 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
@@ -1330,7 +1299,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'vgyme' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'filemail' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
