@@ -200,7 +200,8 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "https://transfer.sh/$ap_human_name_escaped") || return 1
+		transfersh_host=${transfersh_host:-https://transfersh.com}
+		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "$transfersh_host/$ap_human_name_escaped") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
 		echo >&2
@@ -214,6 +215,8 @@ function transfersh {
 		echo 'Generic-file host with a popular, official CLI client. No ads.'
 		echo '[tags]'
 		echo 'private'
+		echo '[config]'
+		echo 'optional|transfersh_host|Protocol, domain name, and host of a transfer.sh site (default: https://transfersh.com, since the original is down)'
 		;;
 	esac
 }
