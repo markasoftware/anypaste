@@ -6,6 +6,8 @@
 
 # TODO: how do we handle testing if there are weird filenames/coming from stdin?
 
+# shellcheck disable=2154
+
 function test_hastebin() {
 	uploadAndAssert hastebin "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"

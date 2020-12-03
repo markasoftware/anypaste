@@ -2,6 +2,7 @@
 # shellcheck disable=1090
 # shellcheck disable=1091
 # shellcheck disable=2034
+# shellcheck disable=2154
 
 test_ap_is_video() {
 	local code
@@ -167,7 +168,7 @@ test_ap_filter_local_plugins() {
 }
 
 test_ap_summary() {
-	local ap_ok_uls ap_fail_uls out
+	local out
 	ap_ok_uls=('a' 'b')
 	ap_fail_uls=()
 	out=$(ap_summary 2>&1)

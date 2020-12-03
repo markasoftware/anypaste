@@ -7,8 +7,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Shellcheck
         uses: ludeeus/action-shellcheck@1.0.0
-        with:
-          additional_files: anypaste
   unit_test:
     runs-on: ubuntu-latest
     steps:

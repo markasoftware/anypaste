@@ -7,7 +7,7 @@
 # shellcheck disable=2128
 
 export ap_version ap_mac ap_path ap_human_name ap_human_name_escaped ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.2-dev'
+ap_version_text='Anypaste 1.1.3-dev'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 ap_tmpdir=${TMPDIR:-/tmp}
 shopt -s extglob
@@ -77,22 +77,6 @@ ap_url_encode() {
 		esac
 		ap_url_encode_return+=$o
 	done
-}
-
-# @param ALL env vars about a path
-# @return $ap_find_extension_return the "ideal" file extension, will be the real extension
-# if it has one, or otherwise will try to determine based on metadata
-function ap_find_extension {
-	local format_name_line
-	# ffmpeg provides the best file extensions
-	if [[ -n $ap_ffprobe && $ap_ffprobe == *probe_score=100* ]]
-	then
-		format_name_line=$(grep 'format_name=' <<< "$ap_ffprobe")
-		ap_find_extension_return=${format_name_line##*=}
-	else
-		# attempt to use actual file extension, if it has one, otherwise null
-		[[ $ap_path == */+([^/]).+([^/]) ]] && ap_find_extension_return=${ap_path##*.} || ap_find_extension_return=
-	fi
 }
 
 # @return exit code is 0 if input is a video (NOT a motion JPEG or animated GIF)
@@ -498,7 +482,7 @@ function filemail {
 		check_size 50000000000
 		;;
 	upload)
-		local id key transfer_global_url transfer_base_url transfer_host init chunk_count complete link direct
+		local id key transfer_global_url transfer_base_url init chunk_count complete link direct
 		filemail_chunk_size=${filemail_chunk_size:-5242880}
 		filemail_job_count=${filemail_job_count:-4}
 
@@ -516,14 +500,14 @@ function filemail {
 		id=$(json_parse "$init" 'transferid')
 		key=$(json_parse "$init" 'transferkey')
 		transfer_base_url=$(json_parse "$init" 'transferurl')
-		transfer_host=${transfer_base_url%/*}
 		# Other required fields are per-chunk and set in chunk loop
 		transfer_global_url="$transfer_base_url?transferid=$id&transferkey=$key&runtime=html5&chunksize=$filemail_chunk_size&thefilename=$ap_human_name_escaped&totalsize=$ap_size&chunks=$chunk_count&retry=0"
 		echo >&2
+		# shellcheck disable=2154
 		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$filemail_job_count" bash -c "
 			# we can't use ap_mktemp here because functions are ephemeral
 			chunk_tmp_file=\$(mktemp -p '$ap_tmpdir' 'anypaste.XXXXXXXXXX')
-			echo -ne \"\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
+			echo -ne \"\\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
 			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
 			transfer_local_url='$transfer_global_url&chunk='\$1
 			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" -A \"\$ap_ua\" || { echo Chunk upload failed!; exit 255; }
