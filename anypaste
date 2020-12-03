@@ -25,11 +25,11 @@ function check_size {
 }
 
 function curl_form_upload {
-	curl -#fF "$1=@\"$ap_path\";type=$ap_mime" "$2" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
+	curl -#fF "$1=@\"$ap_path\";type=$ap_mime" -A "$ap_ua" "$2" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
 }
 
 function curl_file_upload {
-	curl "-X$1" -#fT "$2" "$3" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
+	curl "-X$1" -#fT "$2" -A "$ap_ua" "$3" || { echo "${ap_ERROR}ERROR: Upload request did not return HTTP 200!${ap_RESET}" >&2 && return 1; }
 }
 
 # string json, string key -> string value
@@ -250,6 +250,7 @@ function imgur {
 	upload)
 		imgur_json=$(curl -#fF "image=@\"$ap_path\"" -F "name=\"$ap_human_name\"" \
 			-H "Authorization: Client-ID ${imgur_client_id:-c7e65b324a5ebe8}" \
+			-A "$ap_ua" \
 			'https://api.imgur.com/3/image') || return 1
 		imgur_json=${imgur_json//\\/}
 		imgur_id=$(json_parse "$imgur_json" 'id')
@@ -285,7 +286,7 @@ function clyp {
 			check_size 5000000
 		;;
 	upload)
-		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' \
+		clyp_json=$(curl -#fF "audioFile=@\"$ap_path\"" -H 'X-Client-Type: WebAlfa' -A "$ap_ua" \
 			https://upload.clyp.it/upload) || return 1
 		clyp_link=$(json_parse "$clyp_json" 'Url')
 		clyp_mp3_direct_link=$(json_parse "$clyp_json" 'SecureMp3Url')
@@ -313,7 +314,7 @@ function streamable {
 		;;
 	upload)
 		# shellcheck disable=2154
-		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" https://api.streamable.com/upload) || return 1
+		streamable_json=$(curl -#fu "$streamable_email:$streamable_password" -F "file=@$ap_path" -A "$ap_ua" https://api.streamable.com/upload) || return 1
 		streamable_shortcode=$(json_parse "$streamable_json" 'shortcode')
 		echo >&2
 		echo "Link: https://streamable.com/$streamable_shortcode"
@@ -343,7 +344,7 @@ function sendvid {
 		# Sendvid won't upload videos with certain file extensions, but will still encode them
 		# and function properly if uploaded as a .mp4
 		# Maybe time for them to switch to mime type checking?
-		sendvid_json=$(curl -#fF "video=@$ap_path;filename=${ap_human_name%.*}.mp4" https://sendvid.com/api/v1/videos) || return 1
+		sendvid_json=$(curl -#fF "video=@\"$ap_path\";filename=${ap_human_name%.*}.mp4" -A "$ap_ua" https://sendvid.com/api/v1/videos) || return 1
 		sendvid_pub=$(json_parse "$sendvid_json" 'slug')
 		sendvid_priv=$(json_parse "$sendvid_json" 'secret')
 		echo >&2
@@ -378,7 +379,7 @@ function gfycat {
 
 		# this is one of the more complex ones
 		# get the key/name of the gfy
-		gfy_init_json=$(curl -sfXPOST https://api.gfycat.com/v1/gfycats) || {
+		gfy_init_json=$(curl -sfXPOST -A "$ap_ua" https://api.gfycat.com/v1/gfycats) || {
 			echo 'Getting gfycat key did not return HTTP 200!' >&2
 			return 1;
 		}
@@ -399,7 +400,7 @@ function gfycat {
 		while true
 		do
 			sleep 4
-			gfy_status=$(curl -fs "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
+			gfy_status=$(curl -fs -A "$ap_ua" "https://api.gfycat.com/v1/gfycats/fetch/status/$gfy_name") || {
 				echo "${ap_ERROR}Status check request did not return HTTP 200!" >&2
 				echo "Your file might end up here anyway: https://gfycat.com/$gfy_name${ap_RESET}" >&2
 				return 1;
@@ -434,7 +435,7 @@ function docdroid {
 		;;
 	upload)
 		# shellcheck disable=2154
-		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" https://docdroid.net/api/document)
+		docdroid_json=$(curl -H "Authorization: Bearer $docdroid_access_token" -#fF "file=@$ap_path" -A "$ap_ua" https://docdroid.net/api/document)
 		docdroid_id=$(json_parse "$docdroid_json" 'id')
 		docdroid_filename=$(json_parse "$docdroid_json" 'filename')
 		echo >&2
@@ -468,7 +469,7 @@ function filemail {
 
 		chunk_count=$(( ap_size / filemail_chunk_size ))
 		(( ap_size % filemail_chunk_size != 0)) && (( chunk_count++ ))
-		init=$(curl -sf --data 'sourcedetails=plupload(html5)+%40+https%3A%2F%2Fwww.filemail.com%2F&days=7&confirmation=true' 'https://www.filemail.com/api/transfer/initialize')
+		init=$(curl -sf --data 'sourcedetails=plupload(html5)+%40+https%3A%2F%2Fwww.filemail.com%2F&days=7&confirmation=true' -A "$ap_ua" 'https://www.filemail.com/api/transfer/initialize')
 		if [[ $? -eq 22 ]]
 		then
 			echo >&2
@@ -490,7 +491,7 @@ function filemail {
 			echo -ne \"\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
 			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
 			transfer_local_url='$transfer_global_url&chunk='\$1
-			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" || { echo Chunk upload failed!; exit 255; }
+			curl -sf --data-binary \"@\$chunk_tmp_file\" -H 'Content-Type: application/octet-stream' \"\$transfer_local_url\" -A \"\$ap_ua\" || { echo Chunk upload failed!; exit 255; }
 			rm -f \"$chunk_tmp_file\"
 		" filemail_upload_worker
 		# shellcheck disable=2181
@@ -501,10 +502,10 @@ function filemail {
 		fi
 		echo >&2
 		echo 'Finishing upload.' >&2
-		complete=$(curl -sfXPOST --data "transferid=$id&transferkey=$key&failed=false" 'https://www.filemail.com/api/transfer/complete')
+		complete=$(curl -sfXPOST --data "transferid=$id&transferkey=$key&failed=false" -A "$ap_ua" 'https://www.filemail.com/api/transfer/complete')
 		link=$(json_parse "$complete" 'downloadurl')
 		# file_key includes filekey= at beginning
-		get_data=$(curl -sfXPOST --data "transferid=$id&skipreg=false&checkhashes=true&filesLimit=3000" "https://www.filemail.com/api/transfer/get")
+		get_data=$(curl -sfXPOST --data "transferid=$id&skipreg=false&checkhashes=true&filesLimit=3000" -A "$ap_ua" "https://www.filemail.com/api/transfer/get")
 		direct=$(json_parse "$get_data" 'downloadurl')
 		echo >&2
 		echo "Link: $link"
@@ -1305,6 +1306,7 @@ function ap_main_inner {
 	ap_hook_policy='lazy'
 	ap_unicode='true'
 	ap_color='true'
+	ap_ua=$ap_version_text
 
 	ap_parse_args
 	$ap_list && exec 2>/dev/null
