@@ -2,6 +2,7 @@
 # shellcheck disable=1090
 # shellcheck disable=1091
 # shellcheck disable=2034
+# shellcheck disable=2154
 
 test_ap_is_video() {
 	local code
@@ -167,7 +168,7 @@ test_ap_filter_local_plugins() {
 }
 
 test_ap_summary() {
-	local ap_ok_uls ap_fail_uls out
+	local out
 	ap_ok_uls=('a' 'b')
 	ap_fail_uls=()
 	out=$(ap_summary 2>&1)
@@ -211,6 +212,21 @@ test_json_parse() {
 
 	out=$(json_parse '{"hello":"world","world":"hello"}' 'world')
 	assertEquals 'key name appears earlier' 'hello' "$out"
+
+	out=$(json_parse '{
+             "hello": "world",
+             "bye": "sonny"
+          }' 'bye')
+	assertEquals 'multi line' 'sonny' "$out"
+}
+
+test_url_encode() {
+	ap_url_encode 'yessir'
+	assertEquals "$ap_url_encode_return" yessir
+	ap_url_encode 'yes sir'
+	assertEquals "$ap_url_encode_return" 'yes%20sir'
+	ap_url_encode 'yes.sir'
+	assertEquals "$ap_url_encode_return" yes.sir
 }
 
 test_upload_loop() {

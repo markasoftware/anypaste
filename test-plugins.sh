@@ -6,6 +6,8 @@
 
 # TODO: how do we handle testing if there are weird filenames/coming from stdin?
 
+# shellcheck disable=2154
+
 function test_hastebin() {
 	uploadAndAssert hastebin "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
@@ -15,14 +17,6 @@ function test_hastebin() {
 function test_ixio() {
 	uploadAndAssert ixio "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
-}
-
-function test_vgyme() {
-	uploadAndAssert vgyme "$png_fixture"
-	# Vgyme's direct links aren't direct -- it reencodes the image (even for png)
-	assertLabelPatternEquals 'vgyme direct link' 'Direct' 'https://i.vgy.me/+([0-9a-zA-Z]).png'
-	assertLabelPatternEquals 'vgyme normal link' 'Link' 'https://vgy.me/u/+([0-9a-zA-Z])'
-	assertLabelPatternEquals 'vgyme delete link' 'Delete' 'https://vgy.me/delete/+([0-9a-zA-Z])'
 }
 
 function test_tinyimg() {
@@ -46,6 +40,17 @@ function test_dmca_gripe() {
 function test_transfersh() {
 	uploadAndAssert transfersh "$wav_fixture"
 	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
+}
+
+function test_keepsh() {
+	uploadAndAssert keepsh "$wav_fixture"
+	# copy paste
+	local file_content direct_link
+	direct_link=$(get_output_link 'Direct')
+	assertNotNull 'direct link was outputted' "$direct_link"
+	file_content=$(<"$wav_fixture")
+	remote_content=$(curl -sLA firefox "$direct_link")
+	assertEquals 'direct link works' "$file_content" "$remote_content"
 }
 
 function test_fileio() {
@@ -75,6 +80,11 @@ function test_gfycat() {
 	uploadAndAssert gfycat "$mkv_fixture"
 	assertLabelPatternEquals 'gfycat direct link (mkv)' 'Direct' 'https://thumbs.gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])-size_restricted.gif'
 	assertLabelPatternEquals 'gfycat normal link (mkv)' 'Link' 'https://gfycat.com/[A-Z]+([a-z])[A-Z]+([a-z])[A-Z]+([a-z])'
+}
+
+function test_filemail() {
+	uploadAndAssert filemail "$wav_fixture"
+	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
 }
 
 # TODO: tests for authenticated plugins

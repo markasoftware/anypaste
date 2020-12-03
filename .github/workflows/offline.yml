@@ -1,0 +1,17 @@
+name: Offline Checks
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Shellcheck
+        uses: ludeeus/action-shellcheck@1.0.0
+  unit_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Unit Tests
+        run: ./test.sh
