@@ -40,6 +40,17 @@ function test_transfersh() {
 	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
 }
 
+function test_keepsh() {
+	uploadAndAssert keepsh "$wav_fixture"
+	# copy paste
+	local file_content direct_link
+	direct_link=$(get_output_link 'Direct')
+	assertNotNull 'direct link was outputted' "$direct_link"
+	file_content=$(<"$wav_fixture")
+	remote_content=$(curl -sLA firefox "$direct_link")
+	assertEquals 'direct link works' "$file_content" "$remote_content"
+}
+
 function test_fileio() {
 	# cause why not, and it's smaller than the WAV
 	uploadAndAssert fileio "$mp3_fixture"

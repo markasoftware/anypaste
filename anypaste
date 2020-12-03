@@ -221,6 +221,37 @@ function transfersh {
 	esac
 }
 
+function keepsh {
+	case $1 in
+	check_eligibility)
+		check_size 500000000
+		;;
+	upload)
+		# ua spoof required
+		local ap_ua_save=$ap_ua
+		ap_ua='curl 7.64.0'
+		keepsh_link=$(curl_file_upload PUT "$ap_path" "https://free.keep.sh") || return 1
+		ap_ua=$ap_ua_save
+		echo 'Reminder: keep.sh uploads are deleted after 24 hours!' >&2
+		echo "Keep.sh's direct links cannot be curled, but work elsewhere."
+		echo >&2
+		echo "Link: $keepsh_link"
+		echo "Direct: $keepsh_link/download"
+		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'keep.sh'
+		echo '[description]'
+		echo 'Generic file host that officially supports curl. Free edition.'
+		echo '[tags]'
+		echo 'private'
+		echo 'direct'
+		echo 'deletable'
+		;;
+	esac
+}
+
 function tinyimg {
 	case $1 in
 	check_eligibility)
@@ -241,6 +272,7 @@ function tinyimg {
 		echo '[tags]'
 		echo 'private'
 		echo 'direct'
+		echo 'permanent'
 		;;
 	esac
 }
@@ -1110,7 +1142,7 @@ function ap_create_config {
 # 'clyp' # Audio
 # 'hastebin' 'ixio' # Text
 # 'docdroid' # Documents
-# 'dmca_gripe' 'transfersh' 'filemail' 'fileio' # Generic
+# 'dmca_gripe' 'keepsh' 'transfersh' 'filemail' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1303,7 +1335,7 @@ function ap_main_inner {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'transfersh' 'filemail' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'clyp' 'hastebin' 'ixio' 'docdroid' 'dmca_gripe' 'keepsh' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
@@ -1371,7 +1403,7 @@ function ap_main {
 	local exit_code
 	ap_main_inner "$@"
 	exit_code="$?"
-	# rm -f "$ap_tmpdir"/anypaste.*
+	rm -f "$ap_tmpdir"/anypaste.*
 	return "$exit_code"
 }
 
