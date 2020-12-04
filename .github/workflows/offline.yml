@@ -15,3 +15,11 @@ jobs:
           submodules: recursive
       - name: Unit Tests
         run: ./test.sh
+  unit_test_mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Unit Tests
+        run: ./test.sh
