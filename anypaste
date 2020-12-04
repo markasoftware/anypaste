@@ -506,7 +506,10 @@ function filemail {
 		# shellcheck disable=2154
 		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$filemail_job_count" bash -c "
 			# we can't use ap_mktemp here because functions are ephemeral
-			chunk_tmp_file=\$(mktemp -p '$ap_tmpdir' 'anypaste.XXXXXXXXXX')
+			tmpdir_save=\$TMPDIR
+			TMPDIR=\$ap_tmpdir
+			chunk_tmp_file=\$(mktemp -t 'anypaste.XXXXXXXXXX')
+			TMPDIR=\$tmpdir_save
 			echo -ne \"\\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
 			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
 			transfer_local_url='$transfer_global_url&chunk='\$1
@@ -625,7 +628,10 @@ function ap_notify_hook {
 # @param optionally, a file extension.
 # If this ever gets changed, make the change inside the filemail pluin xargs too.
 function ap_mktemp {
-	mktemp -p "$ap_tmpdir" "anypaste.XXXXXXXXXX$1"
+	local tmpdir_save
+	tmpdir_save=$TMPDIR
+	TMPDIR=$ap_tmpdir mktemp -t "anypaste.XXXXXXXXXX$1"
+	TMPDIR=$tmpdir_save
 }
 
 function ap_color_vars {
@@ -1271,35 +1277,35 @@ See https://anypaste.xyz/ for detailed documentation.
 
 OPTIONS:
 
- -i          Enable interactive mode. Will prompt for important options.
-             Combining this with options intended for non-interactive
-             use (e.g, -p) has undefined behavior. If you are reading
-             your file from stdin, -i might not work properly.
- -p          Specify a plugin instead of automatic selection. Uses fuzzy
-             matching (e.g, `gfy` search will match `gfycat` plugin).
-             Only searches compatible plugins by default.
- -t          Specify required "tags" for plugins, comma separated. You
-             can use -l to see what tags plugins have.
- -n          Specify the name that will be displayed on the site. Not
-             universally supported. Defaults to file basename.
- -l, --list  List all installed plugins, and some metadata about each.
-             This works in combination with other filtering things; for
-             example you can do `anypaste -l myfile.png` to list plugins
-             compatible with myfile.png. Will echo raw get_info output
-             from each plugin if stdout is not a terminal, cannot be
-             overridden :(
- -s          Silence everything but links (equivalent to 2>/dev/null)
- -c          Use the specified configuration file instead of the default
-             one located at $XDG_CONFIG_HOME/anypaste.conf
- -C          Create a default configuration file. This is how you should
-             initialize a config file if you want to use one.
- -f          Do not check plugin compatibility. Without -p, it uses the
-             first listed plugin in the config file. Primary meant for
-             use with -p
- -x, --copy  Copy the link to the clipboard after upload is complete.
- --notify    Send a desktop notification (GUI) after upload.
- -v          Display Anypaste version
- -h, --help  Display this help text.
+ -i			 Enable interactive mode. Will prompt for important options.
+			 Combining this with options intended for non-interactive
+			 use (e.g, -p) has undefined behavior. If you are reading
+			 your file from stdin, -i might not work properly.
+ -p			 Specify a plugin instead of automatic selection. Uses fuzzy
+			 matching (e.g, `gfy` search will match `gfycat` plugin).
+			 Only searches compatible plugins by default.
+ -t			 Specify required "tags" for plugins, comma separated. You
+			 can use -l to see what tags plugins have.
+ -n			 Specify the name that will be displayed on the site. Not
+			 universally supported. Defaults to file basename.
+ -l, --list	 List all installed plugins, and some metadata about each.
+			 This works in combination with other filtering things; for
+			 example you can do `anypaste -l myfile.png` to list plugins
+			 compatible with myfile.png. Will echo raw get_info output
+			 from each plugin if stdout is not a terminal, cannot be
+			 overridden :(
+ -s			 Silence everything but links (equivalent to 2>/dev/null)
+ -c			 Use the specified configuration file instead of the default
+			 one located at $XDG_CONFIG_HOME/anypaste.conf
+ -C			 Create a default configuration file. This is how you should
+			 initialize a config file if you want to use one.
+ -f			 Do not check plugin compatibility. Without -p, it uses the
+			 first listed plugin in the config file. Primary meant for
+			 use with -p
+ -x, --copy	 Copy the link to the clipboard after upload is complete.
+ --notify	 Send a desktop notification (GUI) after upload.
+ -v			 Display Anypaste version
+ -h, --help	 Display this help text.
 
 Plugins may support additional options not listed here.
 '
