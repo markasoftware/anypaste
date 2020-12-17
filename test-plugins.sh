@@ -9,6 +9,12 @@
 # shellcheck disable=2154
 
 # new rule: Put new plugins at the top
+
+function test_paste2() {
+	uploadAndAssert paste2 "$text_fixture"
+	assertLabelPatternEquals 'paste2 link' 'Link' 'https://paste2.org/+([0-9a-zA-Z])'
+}
+
 function test_pdefault() {
 	uploadAndAssert pdefault "$text_fixture"
 	assertLabelPatternEquals 'pdefault link' 'Link' 'https://p.defau.lt/?+([0-9a-zA-Z_])'
