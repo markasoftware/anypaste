@@ -72,6 +72,7 @@ function uploadAndAssert {
 	# shellcheck disable=2034
 	# shellcheck disable=2154
 	ap_path=$ap_rel_to_abs_return
+	ap_tmpdir=${TMPDIR:-/tmp}
 	ap_collect_file_metadata "$2"
 	"$1" check_eligibility
 	exit_code=$?
