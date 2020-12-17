@@ -74,12 +74,6 @@ function test_fileio() {
 	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
 }
 
-function test_clyp() {
-	uploadAndAssert clyp "$mp3_fixture"
-	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
-	assertLabelPatternEquals 'clyp normal link' 'Link' 'https://clyp.it/+([0-9a-z])'
-}
-
 function test_sendvid() {
 	uploadAndAssert sendvid "$mkv_fixture"
 	assertLabelPatternEquals 'sendvid normal link' 'Link' 'https://sendvid.com/+([0-9a-z])'
