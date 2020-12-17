@@ -9,6 +9,11 @@
 # shellcheck disable=2154
 
 # new rule: Put new plugins at the top
+function test_pdefault() {
+	uploadAndAssert pdefault "$text_fixture"
+	assertLabelPatternEquals 'pdefault link' 'Link' 'https://p.defau.lt/?+([0-9a-zA-Z_])'
+}
+
 function test_gofile() {
 	uploadAndAssert gofile "$wav_fixture"
 	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
