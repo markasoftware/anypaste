@@ -10,6 +10,11 @@
 
 # new rule: Put new plugins at the top
 
+function test_pastie() {
+	uploadAndAssert pastie "$text_fixture"
+	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
+}
+
 function test_paste2() {
 	uploadAndAssert paste2 "$text_fixture"
 	assertLabelPatternEquals 'paste2 link' 'Link' 'https://paste2.org/+([0-9a-zA-Z])'

@@ -189,6 +189,31 @@ function paste2 {
 	esac
 }
 
+function pastie {
+	case $1 in
+	check_eligibility)
+		[[ $ap_mime == text/* ]] # TODO: size?
+		;;
+	upload)
+		pastie_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' --data 'language=plaintext' --data-urlencode "content@$ap_path" http://pastie.org/pastes/create)
+		echo 'Reminder: Pastie uploads are deleted 24 hours after upload!' >&2
+		echo >&2
+		echo "Link: $pastie_link"
+		echo "Direct: $pastie_link/raw"
+		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Pastie'
+		echo '[description]'
+		echo 'Simple plain-text hosting site.'
+		echo '[tags]'
+		echo 'private'
+		echo 'direct'
+		;;
+	esac
+}
+
 function hastebin {
 	case $1 in
 	check_eligibility)
@@ -1232,7 +1257,7 @@ function ap_create_config {
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
 # 'tinyimg' 'imgur' 'pixhost' # Images
 # # Audio
-# 'hastebin' 'ixio' 'pdefault' 'paste2' # Text
+# 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
 # 'dmca_gripe' 'gofile' 'keepsh' 'transfersh' 'filemail' 'fileio' # Generic
 # )
@@ -1427,7 +1452,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'hastebin' 'ixio' 'pdefault' 'paste2' 'docdroid' 'dmca_gripe' 'gofile' 'keepsh' 'transfersh' 'filemail' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' 'docdroid' 'dmca_gripe' 'gofile' 'keepsh' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
