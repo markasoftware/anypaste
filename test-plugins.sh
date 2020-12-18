@@ -10,6 +10,11 @@
 
 # new rule: Put new plugins at the top
 
+function test_bayfiles() {
+	uploadAndAssert bayfiles "$wav_fixture"
+	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
+}
+
 function test_pastie() {
 	uploadAndAssert pastie "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"

@@ -149,7 +149,7 @@ function pdefault {
 		;;
 	upload)
 		# using curl's @ instead of < causes a problem
-		pdefault_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' -F "code=<$ap_path" https://p.defau.lt/submit.php)
+		pdefault_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' -F "code=<$ap_path" https://p.defau.lt/submit.php) || return 1
 		echo >&2
 		echo "Link: $pdefault_link"
 		echo
@@ -172,7 +172,7 @@ function paste2 {
 		[[ $ap_mime == text/* ]] # TODO: size?
 		;;
 	upload)
-		paste2_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' -F "code=<$ap_path" -F description= -F lang=text -F parent= https://paste2.org)
+		paste2_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' -F "code=<$ap_path" -F description= -F lang=text -F parent= https://paste2.org) || return 1
 		echo >&2
 		echo "Link: $paste2_link"
 		echo
@@ -195,7 +195,7 @@ function pastie {
 		[[ $ap_mime == text/* ]] # TODO: size?
 		;;
 	upload)
-		pastie_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' --data 'language=plaintext' --data-urlencode "content@$ap_path" http://pastie.org/pastes/create)
+		pastie_link=$(curl -#A "$ap_ua" -o /dev/null -sw '%{redirect_url}' --data 'language=plaintext' --data-urlencode "content@$ap_path" http://pastie.org/pastes/create) || return 1
 		echo 'Reminder: Pastie uploads are deleted 24 hours after upload!' >&2
 		echo >&2
 		echo "Link: $pastie_link"
@@ -331,10 +331,10 @@ function gofile {
 	upload)
 		gofile_server_json=$(curl_get https://apiv2.gofile.io/getServer) || return 1
 		gofile_server=$(json_parse "$gofile_server_json" server)
-		gofile_upload_json=$(curl_form_upload file "https://${gofile_server}.gofile.io/uploadFile")
+		gofile_upload_json=$(curl_form_upload file "https://${gofile_server}.gofile.io/uploadFile") || return 1
 		gofile_code=$(json_parse "$gofile_upload_json" code)
 		gofile_admin_code=$(json_parse "$gofile_upload_json" adminCode)
-		gofile_info_json=$(curl_get "https://apiv2.gofile.io/getUpload?c=$gofile_code")
+		gofile_info_json=$(curl_get "https://apiv2.gofile.io/getUpload?c=$gofile_code") || return 1
 		gofile_direct=$(json_parse "$gofile_info_json" link)
 		echo 'Reminder: Gofile uploads are deleted after 10 days of inactivity.' >&2
 		echo >&2
@@ -353,6 +353,34 @@ function gofile {
 		echo 'private'
 		echo 'direct'
 		echo 'deletable'
+	esac
+}
+
+function bayfiles {
+	case $1 in
+	check_eligibility)
+		check_size 20000000000
+		;;
+	upload)
+		bayfiles_json=$(curl_form_upload file https://api.bayfiles.com/upload) || return 1
+		bayfiles_link=$(json_parse "$bayfiles_json" short)
+		bayfiles_direct=$(curl_get "$bayfiles_link" | grep -oE 'https://cdn-..\.bayfiles.com/.+?[^\\]">') || return 1
+		bayfiles_direct=${bayfiles_direct%'"'>}
+		echo >&2
+		echo "Link: $bayfiles_link"
+		echo "Direct: $bayfiles_direct"
+		echo
+		;;
+	get_info)
+		echo '[name]'
+		echo 'Bayfiles'
+		echo '[description]'
+		echo 'Generic file hosting site which used to be associated with the pirate bay?'
+		echo '[tags]'
+		echo 'private'
+		echo 'permanent'
+		echo 'direct'
+		;;
 	esac
 }
 
@@ -1259,7 +1287,7 @@ function ap_create_config {
 # # Audio
 # 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
-# 'dmca_gripe' 'gofile' 'keepsh' 'transfersh' 'filemail' 'fileio' # Generic
+# 'gofile' 'bayfiles' 'keepsh' 'filemail' 'dmca_gripe' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1452,7 +1480,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' 'docdroid' 'dmca_gripe' 'gofile' 'keepsh' 'transfersh' 'filemail' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' 'docdroid' 'gofile' 'bayfiles' 'keepsh' 'transfersh' 'filemail' 'dmca_gripe' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
