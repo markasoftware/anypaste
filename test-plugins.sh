@@ -8,6 +8,42 @@
 
 # shellcheck disable=2154
 
+# new rule: Put new plugins at the top
+
+function test_bayfiles() {
+	uploadAndAssert bayfiles "$wav_fixture"
+	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
+}
+
+function test_pastie() {
+	uploadAndAssert pastie "$text_fixture"
+	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
+}
+
+function test_paste2() {
+	uploadAndAssert paste2 "$text_fixture"
+	assertLabelPatternEquals 'paste2 link' 'Link' 'https://paste2.org/+([0-9a-zA-Z])'
+}
+
+function test_pdefault() {
+	uploadAndAssert pdefault "$text_fixture"
+	assertLabelPatternEquals 'pdefault link' 'Link' 'https://p.defau.lt/?+([0-9a-zA-Z_])'
+}
+
+function test_gofile() {
+	uploadAndAssert gofile "$wav_fixture"
+	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
+	# really i should have an assertLabelRegexEquals but oh well, vim keybinds are fine
+	assertLabelPatternEquals 'gofile admin code' 'Admin Code' '[0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z]'
+}
+
+function test_pixhost() {
+	uploadAndAssert pixhost "$jpeg_fixture"
+	assertLabelPatternEquals 'pixhost normal link' 'Link' "https://pixhost.to/show/+([0-9/])_$(basename "$jpeg_fixture")"
+	assertLabelPatternEquals 'pixhost thumbnail/direct link' 'Direct' \
+							 "https://+([a-z0-9.])pixhost.to/thumbs/+([0-9/])_$(basename "$jpeg_fixture")"
+}
+
 function test_hastebin() {
 	uploadAndAssert hastebin "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
@@ -57,12 +93,6 @@ function test_fileio() {
 	# cause why not, and it's smaller than the WAV
 	uploadAndAssert fileio "$mp3_fixture"
 	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
-}
-
-function test_clyp() {
-	uploadAndAssert clyp "$mp3_fixture"
-	assertDirectLinkWorks 'uploads mp3 fixture' "$mp3_fixture"
-	assertLabelPatternEquals 'clyp normal link' 'Link' 'https://clyp.it/+([0-9a-z])'
 }
 
 function test_sendvid() {
