@@ -271,7 +271,7 @@ function transfersh {
 		check_size 10000000000
 		;;
 	upload)
-		transfersh_host=${transfersh_host:-https://transfersh.com}
+		transfersh_host=${transfersh_host:-https://transfer.sh}
 		transfersh_link=$(curl_file_upload 'PUT' "$ap_path" "$transfersh_host/$ap_human_name_escaped") || return 1
 		echo 'Reminder: transfer.sh uploads are deleted after 14 days!' >&2
 		echo 'Transfer.sh links are *not* direct if you use a browser, but they can be curled!' >&2;
@@ -287,7 +287,7 @@ function transfersh {
 		echo '[tags]'
 		echo 'private'
 		echo '[config]'
-		echo 'optional|transfersh_host|Protocol, domain name, and host of a transfer.sh site (default: https://transfersh.com, since the original is down)'
+		echo 'optional|transfersh_host|Protocol, domain name, and host of a transfer.sh site (default: https://transfer.sh)'
 		;;
 	esac
 }
@@ -663,7 +663,7 @@ function filemail {
 		# shellcheck disable=2154
 		seq 0 $(( chunk_count - 1 )) | xargs -L1 -P "$filemail_job_count" bash -c "
 			chunk_tmp_file=\$(mktemp -t 'anypaste.XXXXXXXXXX')
-			trap \"rm -f '\$chunk_tmp_file'\"
+			trap \"rm -f '\$chunk_tmp_file'\" EXIT
 			echo -ne \"\\rUploading chunk \$(( \$1 + 1 )) of $chunk_count.\" >&2
 			tail -c \"+\$(( $filemail_chunk_size * \$1 ))\" < '$ap_path' | head -c $filemail_chunk_size > \"\$chunk_tmp_file\"
 			transfer_local_url='$transfer_global_url&chunk='\$1
@@ -710,9 +710,16 @@ function dmca_gripe {
 	upload)
 		dmca_gripe_json=$(curl_form_upload 'files[]' 'https://dmca.gripe/api/upload') || return 1
 		dmca_gripe_json=$(tr -d \\n <<< "$dmca_gripe_json")
-		dmca_gripe_link=$(json_parse "$dmca_gripe_json" 'url')
+		dmca_gripe_name=$(json_parse "$dmca_gripe_json" 'name')
+		dmca_gripe_success=$(json_parse "$dmca_gripe_json" 'success')
+		if [[ $dmca_gripe_success != true ]]
+		then
+			echo "dmca.gripe upload failed: $(json_parse "$dmca_gripe_json" 'description')" >&2
+			return 1
+		fi
 		echo >&2
-		echo "Direct: $dmca_gripe_link"
+		echo "Link: https://share.dmca.gripe/$dmca_gripe_name"
+		echo "Direct: https://share.dmca.gripe/dl/$dmca_gripe_name"
 		echo
 		;;
 	get_info)
@@ -1285,7 +1292,7 @@ function ap_create_config {
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
 # 'tinyimg' 'imgur' 'pixhost' # Images
 # # Audio
-# 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' # Text
+# 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
 # 'gofile' 'bayfiles' 'keepsh' 'filemail' 'dmca_gripe' 'fileio' # Generic
 # )
@@ -1480,7 +1487,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'hastebin' 'ixio' 'pdefault' 'pastie' 'paste2' 'docdroid' 'gofile' 'bayfiles' 'keepsh' 'transfersh' 'filemail' 'dmca_gripe' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'gofile' 'bayfiles' 'keepsh' 'transfersh' 'filemail' 'dmca_gripe' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
