@@ -364,7 +364,7 @@ function bayfiles {
 	upload)
 		bayfiles_json=$(curl_form_upload file https://api.bayfiles.com/upload) || return 1
 		bayfiles_link=$(json_parse "$bayfiles_json" short)
-		bayfiles_direct=$(curl_get "$bayfiles_link" | grep -oE 'https://cdn-..\.bayfiles.com/.+?[^\\]">') || return 1
+		bayfiles_direct=$(curl_get "$bayfiles_link" | grep -oE 'https://cdn-[0-9]+\.bayfiles\.com/.+?[^\\]">') || return 1
 		bayfiles_direct=${bayfiles_direct%'"'>}
 		echo >&2
 		echo "Link: $bayfiles_link"
