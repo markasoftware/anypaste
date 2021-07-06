@@ -32,9 +32,7 @@ function test_pdefault() {
 
 function test_gofile() {
 	uploadAndAssert gofile "$wav_fixture"
-	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
-	# really i should have an assertLabelRegexEquals but oh well, vim keybinds are fine
-	assertLabelPatternEquals 'gofile admin code' 'Admin Code' '[0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z]'
+	assertLabelPatternEquals 'gofile link' "https://gofile.io/d/+([0-9a-zA-Z])"
 }
 
 function test_pixhost() {

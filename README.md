@@ -28,3 +28,13 @@ Anypaste is just a shell script. It's hosted at `https://anypaste.xyz/sh`. A qui
 ## Contributing
 
 Please, make some plugins so we can support more sites! If the plugins seem good enough, I may even make them built-in plugins! Additionally, PRs to improve "Anypaste Core" are also welcome.
+
+### Running Tests
+
+On the master branch, all the `test*.sh` files should execeute without error and all shell files
+should pass shellcheck (including the tests). The `test-plugins.sh` and `test-integration.sh` tests
+perform actual network requests, so are somewhat finnicky, and are not tested automatically in
+Github actions. It may be useful to run only certain tests at a time, eg `./test-plugins.sh --
+test_gofile`. Some of the plugin tests actually download the file from the direct link and ensure
+it's the same as the original, but this isn't possible for all plugins, so `test-plugins.sh` is no
+guarantee that the plugin is working as expected.
