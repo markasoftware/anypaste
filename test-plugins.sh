@@ -32,9 +32,7 @@ function test_pdefault() {
 
 function test_gofile() {
 	uploadAndAssert gofile "$wav_fixture"
-	assertDirectLinkWorks 'uploads wav fixture' "$wav_fixture"
-	# really i should have an assertLabelRegexEquals but oh well, vim keybinds are fine
-	assertLabelPatternEquals 'gofile admin code' 'Admin Code' '[0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z]'
+	assertLabelPatternEquals 'gofile link' "https://gofile.io/d/+([0-9a-zA-Z])"
 }
 
 function test_pixhost() {
@@ -66,11 +64,6 @@ function test_imgur() {
 	assertLabelPatternEquals 'imgur normal link' 'Link' 'https://imgur.com/+([0-9a-zA-Z])'
 	assertLabelPatternEquals 'imgur edit link' 'Edit' 'https://imgur.com/edit?deletehash=+([0-9a-zA-Z])'
 	assertLabelPatternEquals 'imgur delete link' 'Delete' 'https://imgur.com/delete/+([0-9a-zA-Z])'
-}
-
-function test_dmca_gripe() {
-	uploadAndAssert dmca_gripe "$webm_fixture"
-	assertDirectLinkWorks 'uploads webm fixture' "$webm_fixture"
 }
 
 function test_transfersh() {

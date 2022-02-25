@@ -8,7 +8,7 @@
 # shellcheck disable=2064
 
 export ap_version ap_mac ap_path ap_human_name ap_human_name_escaped ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.4'
+ap_version_text='Anypaste 1.1.5'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
 
@@ -331,28 +331,33 @@ function gofile {
 	upload)
 		gofile_server_json=$(curl_get https://apiv2.gofile.io/getServer) || return 1
 		gofile_server=$(json_parse "$gofile_server_json" server)
-		gofile_upload_json=$(curl_form_upload file "https://${gofile_server}.gofile.io/uploadFile") || return 1
-		gofile_code=$(json_parse "$gofile_upload_json" code)
-		gofile_admin_code=$(json_parse "$gofile_upload_json" adminCode)
-		gofile_info_json=$(curl_get "https://apiv2.gofile.io/getUpload?c=$gofile_code") || return 1
-		gofile_direct=$(json_parse "$gofile_info_json" link)
-		echo 'Reminder: Gofile uploads are deleted after 10 days of inactivity.' >&2
+		if [[ -n "$gofile_token" ]]
+		then
+			gofile_upload_json=$(curl_form_upload file -F "token=$gofile_token" "https://${gofile_server}.gofile.io/uploadFile") || return 1
+		else
+			gofile_upload_json=$(curl_form_upload file "https://${gofile_server}.gofile.io/uploadFile") || return 1
+		fi
+		gofile_link=$(json_parse "$gofile_upload_json" downloadPage)
+		gofile_direct=$(json_parse "$gofile_upload_json" directLink)
+		[[ -z "$gofile_donor_p" ]] && echo 'Reminder: Gofile uploads are deleted after 10 days of inactivity.' >&2
 		echo >&2
-		echo "Link: https://gofile.io/d/$gofile_code"
-		echo "Direct: $gofile_direct"
-		echo "Edit: https://gofile.io/d/$gofile_code/edit"
-		echo "Admin Code: $gofile_admin_code"
+		echo "Link: $gofile_link"
+		[[ -n "$gofile_donor_p" ]] && echo "Direct: $gofile_direct"
 		echo
 		;;
 	get_info)
 		echo '[name]'
 		echo 'Gofile'
 		echo '[description]'
-		echo 'Generic file host with official API and /unlimited/ upload size. Donate to them!'
+		echo 'Generic file host with official API and /unlimited/ upload size. Has a paid plan with permanent storage and direct links.'
 		echo '[tags]'
 		echo 'private'
-		echo 'direct'
-		echo 'deletable'
+		[[ -n "$gofile_token" ]] && echo 'deletable'
+		[[ -n "$gofile_donor_p" ]] && echo 'permanent'
+		[[ -n "$gofile_donor_p" ]] && echo 'direct'
+		echo '[config]'
+		echo 'optional|gofile_token|API token from "my profile" page. Allows editing or deleting uploaded files. If you are a donor, this will make direct links work and make uploads be permanent.'
+		echo 'optional|gofile_donor_p|Set to a nonempty string to print out direct links, which will work only if you have a paid gofile account.'
 	esac
 }
 
@@ -699,38 +704,6 @@ function filemail {
 		echo '[config]'
 		echo 'optional|filemail_job_count|The maximum number of chunk uploads to perform in parallel. Defaults to 4.'
 		echo 'optional|filemail_chunk_size|The maximum chunk size. Defaults to 5242880 and probably should not be changed.'
-	esac
-}
-
-function dmca_gripe {
-	case $1 in
-	check_eligibility)
-		check_size 1025000000
-		;;
-	upload)
-		dmca_gripe_json=$(curl_form_upload 'files[]' 'https://dmca.gripe/api/upload') || return 1
-		dmca_gripe_json=$(tr -d \\n <<< "$dmca_gripe_json")
-		dmca_gripe_name=$(json_parse "$dmca_gripe_json" 'name')
-		dmca_gripe_success=$(json_parse "$dmca_gripe_json" 'success')
-		if [[ $dmca_gripe_success != true ]]
-		then
-			echo "dmca.gripe upload failed: $(json_parse "$dmca_gripe_json" 'description')" >&2
-			return 1
-		fi
-		echo >&2
-		echo "Link: https://share.dmca.gripe/$dmca_gripe_name"
-		echo "Direct: https://share.dmca.gripe/dl/$dmca_gripe_name"
-		echo
-		;;
-	get_info)
-		echo '[name]'
-		echo 'Dmca.gripe'
-		echo '[description]'
-		echo 'A generic file hosting site powered by github.com/pomf/pomf.'
-		echo '[tags]'
-		echo 'private'
-		echo 'permanent'
-		echo 'direct'
 	esac
 }
 
@@ -1294,7 +1267,7 @@ function ap_create_config {
 # # Audio
 # 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
-# 'gofile' 'bayfiles' 'keepsh' 'filemail' 'dmca_gripe' 'fileio' # Generic
+# 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1487,7 +1460,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'gofile' 'bayfiles' 'keepsh' 'transfersh' 'filemail' 'dmca_gripe' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
