@@ -707,38 +707,6 @@ function filemail {
 	esac
 }
 
-function dmca_gripe {
-	case $1 in
-	check_eligibility)
-		check_size 1025000000
-		;;
-	upload)
-		dmca_gripe_json=$(curl_form_upload 'files[]' 'https://dmca.gripe/api/upload') || return 1
-		dmca_gripe_json=$(tr -d \\n <<< "$dmca_gripe_json")
-		dmca_gripe_name=$(json_parse "$dmca_gripe_json" 'name')
-		dmca_gripe_success=$(json_parse "$dmca_gripe_json" 'success')
-		if [[ $dmca_gripe_success != true ]]
-		then
-			echo "dmca.gripe upload failed: $(json_parse "$dmca_gripe_json" 'description')" >&2
-			return 1
-		fi
-		echo >&2
-		echo "Link: https://share.dmca.gripe/$dmca_gripe_name"
-		echo "Direct: https://share.dmca.gripe/dl/$dmca_gripe_name"
-		echo
-		;;
-	get_info)
-		echo '[name]'
-		echo 'Dmca.gripe'
-		echo '[description]'
-		echo 'A generic file hosting site powered by github.com/pomf/pomf.'
-		echo '[tags]'
-		echo 'private'
-		echo 'permanent'
-		echo 'direct'
-	esac
-}
-
 #################
 ## END PLUGINS ##
 ## BEGIN CORE ###
@@ -1299,7 +1267,7 @@ function ap_create_config {
 # # Audio
 # 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
-# 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'dmca_gripe' 'fileio' # Generic
+# 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio' # Generic
 # )
 
 # Make sure to use export `boop=whatever` for plugin settings, not just `boop=whatever`
@@ -1492,7 +1460,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'dmca_gripe' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
