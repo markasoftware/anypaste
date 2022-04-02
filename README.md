@@ -23,7 +23,9 @@ Anypaste is just a shell script. It's hosted at `https://anypaste.xyz/sh`. A qui
 
 ## Website
 
-[Documentation](https://anypaste.xyz/docs.html), and the [list of plugins](https://anypaste.xyz/plugins.html) can be found on the [Anypaste website](https://anypaste.xyz). The website is open source and can be contributed to in its [GitHub repo](https://github.com/markasoftware/anypaste-website).
+Documentation can be found on the [Anypaste website](https://anypaste.xyz/), as well as the complete
+[list of plugins](https://anypaste.xyz/#plugins). The website is open source and can be
+contributed to in its [GitHub repo](https://github.com/markasoftware/anypaste-website).
 
 ## Contributing
 
