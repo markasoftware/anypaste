@@ -45,17 +45,12 @@ function test_pixhost() {
 function test_hastebin() {
 	uploadAndAssert hastebin "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
-	assertLabelPatternEquals 'hastebin normal link' 'Link' 'https://hastebin.com/+([a-z])'
+	assertLabelPatternEquals 'hastebin normal link' 'Link' 'https://hastebin.skyra.pw/+([a-z])'
 }
 
 function test_ixio() {
 	uploadAndAssert ixio "$text_fixture"
 	assertDirectLinkWorks 'uploads text fixture' "$text_fixture"
-}
-
-function test_tinyimg() {
-	uploadAndAssert tinyimg "$jpeg_fixture"
-	assertDirectLinkWorks 'uploads jpeg fixture' "$jpeg_fixture"
 }
 
 function test_imgur() {
