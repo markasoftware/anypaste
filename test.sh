@@ -221,6 +221,9 @@ test_json_parse() {
              "bye": "sonny"
           }' 'bye')
 	assertEquals 'multi line' 'sonny' "$out"
+
+	out=$(json_parse '{"hello":"wor\/ld"}' 'hello')
+	assertEquals 'escaped slash' 'wor/ld' "$out"
 }
 
 test_url_encode() {

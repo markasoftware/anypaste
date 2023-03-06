@@ -8,7 +8,7 @@
 # shellcheck disable=2064
 
 export ap_version ap_mac ap_path ap_human_name ap_human_name_escaped ap_mime ap_size ap_plugin ap_last_stdout
-ap_version_text='Anypaste 1.1.5'
+ap_version_text='Anypaste 1.1.6'
 [[ $OSTYPE == darwin* ]] && ap_mac='true' || ap_mac='false'
 shopt -s extglob
 
@@ -50,8 +50,7 @@ function curl_get {
 # string json, string key -> string value
 # make sure shopt -s extglob is on before using
 # not standards compliant in any way shape or form, is designed specifically to work around strange
-# cases present in anypaste plugins, mainly if the whole json is wrapped in a string so all
-# actual strings inside of the json are escaped, eg: "{\"hello\":\"world\"}", see test.sh for more
+# cases present in anypaste plugins
 function json_parse {
 	local infernal_agony
 	infernal_agony="$1"
@@ -63,6 +62,8 @@ function json_parse {
 		# remove initial quote
 		infernal_agony=${infernal_agony:1}
 		infernal_agony=${infernal_agony%%\"*}
+		# remove backslashes escaping things such as forward slashes. This breaks if there's a literal backslash because it gets completely removed, but I don't think that's a problem for us...
+		infernal_agony=${infernal_agony//\\/}
 	else
 		# it can only be a number or a boolean, so it can't contain special characters at this point
 		infernal_agony=${infernal_agony%%[ ,\}]*}
@@ -220,19 +221,19 @@ function hastebin {
 		[[ $ap_mime == text/* ]] && check_size 400000
 		;;
 	upload)
-		hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.com/documents') || return 1
+		hastebin_json=$(curl_file_upload 'POST' "$ap_path" 'https://hastebin.skyra.pw/documents') || return 1
 		hastebin_id=$(json_parse "$hastebin_json" 'key')
 		echo 'Reminder: hastebin.com uploads are deleted 30 days after their last view!' >&2
 		echo >&2
-		echo "Link: https://hastebin.com/$hastebin_id"
-		echo "Direct: https://hastebin.com/raw/$hastebin_id"
+		echo "Link: https://hastebin.skyra.pw/$hastebin_id"
+		echo "Direct: https://hastebin.skyra.pw/raw/$hastebin_id"
 		echo
 		;;
 	get_info)
 		echo '[name]'
 		echo 'Hastebin'
 		echo '[description]'
-		echo 'Plain-text host with syntax highlighting and forking.'
+		echo 'Plain-text host with syntax highlighting and forking. The original hastebin.com was changed, so we use hastebin.skyra.pw'
 		echo '[tags]'
 		echo 'private'
 		echo 'direct'
@@ -418,31 +419,6 @@ function pixhost {
 		echo 'private'
 		echo 'permanent'
 		echo 'direct' # idk if it really counts
-	esac
-}
-
-function tinyimg {
-	case $1 in
-	check_eligibility)
-		[[ $ap_mime == image/* ]] && check_size 10000000
-		;;
-	upload)
-		tinyimg_json=$(curl_form_upload 'qqfile' 'https://tinyimg.io/upload') || return 1
-		tinyimg_filename=$(json_parse "$tinyimg_json" 'uploadName')
-		echo >&2
-		echo "Direct: https://tinyimg.io/i/$tinyimg_filename"
-		echo
-		;;
-	get_info)
-		echo '[name]'
-		echo 'Tinyimg'
-		echo '[description]'
-		echo 'Image host, super simple, direct links only.'
-		echo '[tags]'
-		echo 'private'
-		echo 'direct'
-		echo 'permanent'
-		;;
 	esac
 }
 
@@ -1263,7 +1239,7 @@ function ap_create_config {
 # You'll need to uncomment (remove # at beginning of line) first
 # ap_plugins=(
 # 'sendvid' 'streamable' 'gfycat' # Videos/Gifs
-# 'tinyimg' 'imgur' 'pixhost' # Images
+# 'imgur' 'pixhost' # Images
 # # Audio
 # 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' # Text
 # 'docdroid' # Documents
@@ -1460,7 +1436,7 @@ function ap_main {
 	ap_help='false'
 	ap_version='false'
 	ap_plugins=(
-		'sendvid' 'streamable' 'gfycat' 'tinyimg' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio'
+		'sendvid' 'streamable' 'gfycat' 'imgur' 'pixhost' 'ixio' 'pdefault' 'hastebin' 'pastie' 'paste2' 'docdroid' 'bayfiles' 'keepsh' 'gofile' 'transfersh' 'filemail' 'fileio'
 	)
 	ap_hooks=()
 	ap_hook_policy='lazy'
