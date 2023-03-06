@@ -58,16 +58,16 @@ function test_version() {
 
 function test_basic_upload() {
 	local out exit_code
-	out=$(ap_main ./anypaste 2>&1)
+	out=$(ap_main -p haste ./anypaste 2>&1)
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
-	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.com/+([a-z])* ]]'
+	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.skyra.pw/+([a-z])* ]]'
 	assertURLIsAnypaste "$out"
 }
 
 function test_p_upload() {
 	local out exit_code
-	out=$(ap_main -p ixio ./anypaste 2>&1)
+	out=$(ap_main ./anypaste 2>&1)
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
 	assertTrue 'uploads to ixio' '[[ $out == *http://ix.io/+([a-zA-Z0-9])* ]]'
@@ -76,10 +76,10 @@ function test_p_upload() {
 
 function test_stdin_upload() {
 	local out exit_code
-	out=$(ap_main < ./anypaste 2>&1)
+	out=$(ap_main -p haste < ./anypaste 2>&1)
 	exit_code="$?"
 	assertEquals 'exit code' 0 "$exit_code"
-	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.com/+([a-z])* ]]'
+	assertTrue 'uploads to Hastebin' '[[ $out == *https://hastebin.skyra.pw/+([a-z])* ]]'
 	assertURLIsAnypaste "$out"
 }
 
