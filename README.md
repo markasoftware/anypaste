@@ -1,5 +1,9 @@
 # Anypaste
 
+## WARNING: Unmaintained
+
+Most of the providers here don't work anymore.
+
 Anypaste is a file sharing site aggregator for *nix-like systems (Mac, Linux, BSD, etc). It uses the mime type of a file to automatically detect compatible hosting sites. For example, if you run `anypaste something.jpg`, it will get uploaded to tinyimg.io, an image hosting site. If you run `anypaste something.m4v`, it will get uploaded to SendVid, a video hosting site. More information about Anypaste can be found on the official website: [anypaste.xyz](https://anypaste.xyz).
 
 ## Demo
